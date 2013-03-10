@@ -16,6 +16,9 @@ from optparse import OptionParser
 
 import sleekxmpp
 
+from difflib import SequenceMatcher
+import itertools
+
 # Python versions before 3.0 do not use UTF-8 encoding
 # by default. To ensure that Unicode is handled properly
 # throughout SleekXMPP, we will set the default encoding
@@ -25,6 +28,46 @@ if sys.version_info < (3, 0):
     sys.setdefaultencoding('utf8')
 else:
     raw_input = input
+
+
+
+def is_morning(s, nick=None):
+    def canonicalise(s):
+        #d = {}
+        #for c in '.,;:-_':
+        #    d[c] = None
+        d = '.,;:-_'
+        s = s.translate(None, d).lower()
+        t = ''.join([a if a != b else '' for a,b in
+                     itertools.izip(s[:-1], s[1:])])
+        return t
+
+    def sim(ref, t):
+        ref = canonicalise(ref)
+        t = canonicalise(t)
+        r = SequenceMatcher(lambda x:x in ' ', ref, t).ratio()
+        return r
+
+    refs1 = ['morning', 'good morning', 'hello', 'hi']
+    refs2 = ['', ' all', ' everyone']
+    if nick:
+        refs2.append(' ' + nick)
+    refs = [''.join(x) for x in itertools.product(refs1, refs2)]
+    logging.debug('Reference messages: %s', refs)
+
+    resp1 = ['morning', 'morning', 'hello', 'hi']
+    resp2 = [''] * len(refs2)
+    resp = [''.join(x) for x in itertools.product(resp1, resp2)]
+
+    r = map(lambda ref: sim(ref, s), refs)
+    logging.debug('Scores: %s', r)
+    mr = max(r)
+    mri = r.index(mr)
+    return (mr, refs[mri], resp[mri])
+
+
+
+
 
 
 class MmmBot(sleekxmpp.ClientXMPP):
@@ -106,10 +149,28 @@ class MmmBot(sleekxmpp.ClientXMPP):
                    for stanza objects and the Message stanza to see
                    how it may be used.
         """
-        if msg['mucnick'] != self.nick and self.nick in msg['body']:
-            self.send_message(mto=msg['from'].bare,
-                              mbody="I heard that, %s." % msg['mucnick'],
-                              mtype='groupchat')
+        #if msg['mucnick'] != self.nick and self.nick in msg['body']:
+        #    self.send_message(mto=msg['from'].bare,
+        #                      mbody="I heard that, %s." % msg['mucnick'],
+        #                      mtype='groupchat')
+
+        if msg['mucnick'] != self.nick:
+            reply = self.greeting(msg['body'], msg['mucnick'])
+            if reply:
+                self.send_message(mto=msg['from'].bare, mbody=reply, mtype='groupchat')
+
+
+
+    def greeting(self, body, user):
+        reply = None
+        r, val, resp = is_morning(body, self.nick)
+        if r > 0.9 or (r > 0.8 and len(val.split()) == 1):
+            reply = '%s %s' %(resp, user)
+
+        print 'Returning %s' % reply
+        return reply
+
+
 
     def muc_online(self, presence):
         """
@@ -128,6 +189,9 @@ class MmmBot(sleekxmpp.ClientXMPP):
                               mbody="Hello, %s %s" % (presence['muc']['role'],
                                                       presence['muc']['nick']),
                               mtype='groupchat')
+
+
+
 
 
 if __name__ == '__main__':
