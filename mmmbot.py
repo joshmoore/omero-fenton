@@ -208,7 +208,8 @@ class MmmBot(sleekxmpp.ClientXMPP):
         repunc = re.escape(string.punctuation + string.whitespace)
         self._stripper_rec = re.compile(
             '^[%s]*(.*?)[%s]*$' %(repunc, repunc), re.DOTALL)
-        self._beer_rec = re.compile('(^|[%s])beer($|[%s])' % (repunc, repunc))
+        self._beer_rec = re.compile('(^|[%s])beers?($|[%s])' % (repunc, repunc),
+                                    re.IGNORECASE)
 
     def _get_exact_greetings(self):
         d = os.path.dirname( __file__ )
