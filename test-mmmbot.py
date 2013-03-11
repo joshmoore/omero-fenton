@@ -85,7 +85,7 @@ class TestMmmBot(unittest.TestCase):
                          [('Message from', 'morning User', 'groupchat')])
 
         b = self.create_bot()
-        msg = self.create_message('>>>>> こんにちは!!!')
+        msg = self.create_message(u'>>>>> こんにちは!!!')
         b.muc_message(msg)
         self.assertEqual(b.messages,
                          [('Message from', 'こんにちは User', 'groupchat')])
