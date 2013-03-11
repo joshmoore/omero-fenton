@@ -72,8 +72,21 @@ class TestMmmBot(unittest.TestCase):
         r = b.beer('Do you want a beer?', 'User')
         self.assertEqual(r, u'%botsnack be\u202ere')
 
+        r = b.beer('Beers', 'User')
+        self.assertEqual(r, u'%botsnack be\u202ere')
+
+        r = b.beer('ber', 'User')
+        self.assertIsNone(r)
+
         r = b.beer('beera', 'User')
         self.assertIsNone(r)
+
+
+    def test_lunch(self):
+        b = self.create_bot()
+
+        r = b.lunch('Lunch?', 'User')
+        self.assertTrue(r, r.startswith('%botsnack '))
 
 
 
@@ -94,6 +107,20 @@ class TestMmmBot(unittest.TestCase):
         msg = self.create_message('morning', 'test-bot0')
         b.muc_message(msg)
         self.assertEqual(b.messages, [])
+
+        b = self.create_bot()
+        msg = self.create_message('Anyone want some beers?')
+        b.muc_message(msg)
+        self.assertEqual(b.messages,
+                         [('Message from', u'%botsnack be\u202ere',
+                           'groupchat')])
+
+        b = self.create_bot()
+        msg = self.create_message('Lunch anyone?')
+        b.muc_message(msg)
+        self.assertEqual(len(b.messages), 1)
+        self.assertNotEqual(b.messages[0][1], u'%botsnack be\u202ere')
+        self.assertTrue(b.messages[0][1].startswith('%botsnack '))
 
 
 
