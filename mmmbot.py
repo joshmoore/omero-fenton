@@ -18,6 +18,10 @@ import sleekxmpp
 
 from difflib import SequenceMatcher
 import itertools
+import os.path
+import string
+import re
+
 
 # Python versions before 3.0 do not use UTF-8 encoding
 # by default. To ensure that Unicode is handled properly
@@ -30,15 +34,15 @@ else:
     raw_input = input
 
 
-
 def is_morning(s, nick=None):
     def canonicalise(s):
-        #d = {}
-        #for c in '.,;:-_':
-        #    d[c] = None
-        d = '.,;:-_'
-        s = s.translate(None, d).lower()
-        t = ''.join([a if a != b else '' for a,b in
+        delchars = string.punctuation + string.whitespace
+        if isinstance(s, unicode):
+            deltable = {ord(a): None for a in delchars}
+            s = s.translate(deltable).lower()
+        else:
+            s = s.translate(None, delchars).lower()
+        t = ''.join([a if a != b else '' for a, b in
                      itertools.izip(s[:-1], s[1:])])
         return t
 
@@ -84,6 +88,9 @@ class MmmBot(sleekxmpp.ClientXMPP):
         self.room = room
         self.nick = nick
 
+        self._get_stripper_rec()
+        self._get_exact_greetings()
+
         # The session_start event will be triggered when
         # the bot establishes its connection with the server
         # and the XML streams are ready for use. We want to
@@ -102,8 +109,8 @@ class MmmBot(sleekxmpp.ClientXMPP):
         # any presences you send yourself. To limit event handling
         # to a single room, use the events muc::room@server::presence,
         # muc::room@server::got_online, or muc::room@server::got_offline.
-        self.add_event_handler("muc::%s::got_online" % self.room,
-                               self.muc_online)
+        #self.add_event_handler("muc::%s::got_online" % self.room,
+        #                       self.muc_online)
 
 
     def start(self, event):
@@ -155,41 +162,55 @@ class MmmBot(sleekxmpp.ClientXMPP):
         #                      mtype='groupchat')
 
         if msg['mucnick'] != self.nick:
-            reply = self.greeting(msg['body'], msg['mucnick'])
-            if reply:
-                self.send_message(mto=msg['from'].bare, mbody=reply, mtype='groupchat')
+            funcs = [self.fuzzy_greeting, self.exact_greeting]
+            for f in funcs:
+                reply = f(msg['body'], msg['mucnick'])
+                if reply:
+                    logging.info('Replying: %s', reply)
+                    self.send_message(mto=msg['from'].bare,
+                                      mbody=reply,
+                                      mtype='groupchat')
+                    return
 
 
 
-    def greeting(self, body, user):
+    def fuzzy_greeting(self, body, user):
         reply = None
-        r, val, resp = is_morning(body, self.nick)
+        s = self._strip(body)
+        r, val, resp = is_morning(s, self.nick)
         if r > 0.9 or (r > 0.8 and len(val.split()) == 1):
             reply = '%s %s' %(resp, user)
+        return reply
 
-        print 'Returning %s' % reply
+    def exact_greeting(self, body, user):
+        reply = None
+        s = self._strip(body)
+        if s in self.greetings_list:
+            reply = '%s %s' %(s, user)
         return reply
 
 
 
-    def muc_online(self, presence):
-        """
-        Process a presence stanza from a chat room. In this case,
-        presences from users that have just come online are
-        handled by sending a welcome message that includes
-        the user's nickname and role in the room.
 
-        Arguments:
-            presence -- The received presence stanza. See the
-                        documentation for the Presence stanza
-                        to see how else it may be used.
-        """
-        if presence['muc']['nick'] != self.nick:
-            self.send_message(mto=presence['from'].bare,
-                              mbody="Hello, %s %s" % (presence['muc']['role'],
-                                                      presence['muc']['nick']),
-                              mtype='groupchat')
 
+    def _strip(self, s):
+        return self._stripper_rec.match(s.lower()).group(1)
+
+    def _get_stripper_rec(self):
+        repunc = re.escape(string.punctuation + string.whitespace)
+        self._stripper_rec = re.compile('^[%s]*(.*?)[%s]*$' %(repunc, repunc))
+
+    def _get_exact_greetings(self):
+        d = os.path.dirname( __file__ )
+        filename = os.path.join(d, 'hello.txt')
+        hdict = {}
+        with open(filename) as f:
+            for ln in f:
+                if ln.lstrip().startswith('#'):
+                    continue
+                k, vs = ln.split(':')
+                hdict[k.strip()] = [v.strip() for v in vs.split(',')]
+        self.greetings_list = set(itertools.chain.from_iterable(hdict.values()))
 
 
 
