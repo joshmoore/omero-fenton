@@ -24,6 +24,7 @@ from difflib import SequenceMatcher
 import itertools
 import string
 import re
+from random import choice
 
 
 # Python versions before 3.0 do not use UTF-8 encoding
@@ -164,7 +165,8 @@ class MmmBot(sleekxmpp.ClientXMPP):
         mucnick = str(msg['mucnick'])
         body = str(msg['body'])
         if mucnick != self.nick and mucnick.find('-bot') < 0:
-            funcs = [self.fuzzy_greeting, self.exact_greeting, self.beer]
+            funcs = [self.fuzzy_greeting, self.exact_greeting, self.beer,
+                     self.lunch]
             for f in funcs:
                 reply = f(body, mucnick)
                 if reply:
@@ -200,6 +202,15 @@ class MmmBot(sleekxmpp.ClientXMPP):
         return reply
 
 
+    def lunch(self, body, user):
+        reply = None
+        food = ['chips', 'caviar', 'arbroath smokie', 'cheese',
+                'deep-fried mars bar', 'pies', 'horse', 'curry']
+        if self._lunch_rec.search(body):
+            reply = u'%%botsnack %s' % choice(food)
+        return reply
+
+
 
     def _strip(self, s):
         return self._stripper_rec.match(s.lower()).group(1)
@@ -210,6 +221,8 @@ class MmmBot(sleekxmpp.ClientXMPP):
             '^[%s]*(.*?)[%s]*$' %(repunc, repunc), re.DOTALL)
         self._beer_rec = re.compile('(^|[%s])beers?($|[%s])' % (repunc, repunc),
                                     re.IGNORECASE)
+        self._lunch_rec = re.compile('(^|[%s])lunch($|[%s])' % (repunc, repunc),
+                                     re.IGNORECASE)
 
     def _get_exact_greetings(self):
         d = os.path.dirname( __file__ )
