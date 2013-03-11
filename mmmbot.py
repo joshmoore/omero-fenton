@@ -10,15 +10,18 @@
 """
 
 import sys
+import os.path
 import logging
 import getpass
 from optparse import OptionParser
 
+# Don't use the system version, might be out of date
+sys.path.insert(0, os.path.join(
+        os.path.dirname( __file__ ), 'SleekXMPP/build/lib'))
 import sleekxmpp
 
 from difflib import SequenceMatcher
 import itertools
-import os.path
 import string
 import re
 
@@ -203,7 +206,8 @@ class MmmBot(sleekxmpp.ClientXMPP):
 
     def _get_compiled_res(self):
         repunc = re.escape(string.punctuation + string.whitespace)
-        self._stripper_rec = re.compile('^[%s]*(.*?)[%s]*$' %(repunc, repunc))
+        self._stripper_rec = re.compile(
+            '^[%s]*(.*?)[%s]*$' %(repunc, repunc), re.DOTALL)
         self._beer_rec = re.compile('(^|[%s])beer($|[%s])' % (repunc, repunc))
 
     def _get_exact_greetings(self):
