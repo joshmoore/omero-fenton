@@ -88,7 +88,7 @@ class MmmBot(sleekxmpp.ClientXMPP):
         self.room = room
         self.nick = nick
 
-        self._get_stripper_rec()
+        self._get_compiled_res()
         self._get_exact_greetings()
 
         # The session_start event will be triggered when
@@ -156,15 +156,14 @@ class MmmBot(sleekxmpp.ClientXMPP):
                    for stanza objects and the Message stanza to see
                    how it may be used.
         """
-        #if msg['mucnick'] != self.nick and self.nick in msg['body']:
-        #    self.send_message(mto=msg['from'].bare,
-        #                      mbody="I heard that, %s." % msg['mucnick'],
-        #                      mtype='groupchat')
 
-        if msg['mucnick'] != self.nick:
-            funcs = [self.fuzzy_greeting, self.exact_greeting]
+        # We're in unicode mode, assume all strings are unicode
+        mucnick = str(msg['mucnick'])
+        body = str(msg['body'])
+        if mucnick != self.nick and mucnick.find('-bot') < 0:
+            funcs = [self.fuzzy_greeting, self.exact_greeting, self.beer]
             for f in funcs:
-                reply = f(msg['body'], msg['mucnick'])
+                reply = f(body, mucnick)
                 if reply:
                     logging.info('Replying: %s', reply)
                     self.send_message(mto=msg['from'].bare,
@@ -191,14 +190,21 @@ class MmmBot(sleekxmpp.ClientXMPP):
 
 
 
+    def beer(self, body, user):
+        reply = None
+        if self._beer_rec.search(body):
+            reply = u'%botsnack be\u202ere'
+        return reply
+
 
 
     def _strip(self, s):
         return self._stripper_rec.match(s.lower()).group(1)
 
-    def _get_stripper_rec(self):
+    def _get_compiled_res(self):
         repunc = re.escape(string.punctuation + string.whitespace)
         self._stripper_rec = re.compile('^[%s]*(.*?)[%s]*$' %(repunc, repunc))
+        self._beer_rec = re.compile('(^|[%s])beer($|[%s])' % (repunc, repunc))
 
     def _get_exact_greetings(self):
         d = os.path.dirname( __file__ )
