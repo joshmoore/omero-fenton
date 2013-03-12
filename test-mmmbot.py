@@ -95,6 +95,13 @@ class TestMmmBot(unittest.TestCase):
         self.assertIsNone(r)
 
 
+    def test_coffee(self):
+        b = self.create_bot()
+
+        r = b.coffee('Coffee?', 'User')
+        self.assertTrue(r.startswith('%botsnack '))
+
+
 
     def test_muc_message(self):
         b = self.create_bot()
