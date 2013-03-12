@@ -86,10 +86,10 @@ class TestMmmBot(unittest.TestCase):
         b = self.create_bot()
 
         r = b.lunch('Lunch?', 'User')
-        self.assertTrue(r, r.startswith('%botsnack '))
+        self.assertTrue(r.startswith('%botsnack '))
 
         r = b.lunch('LunchTime...', 'User')
-        self.assertTrue(r, r.startswith('%botsnack '))
+        self.assertTrue(r.startswith('%botsnack '))
 
         r = b.lunch('Lunchtim', 'User')
         self.assertIsNone(r)
