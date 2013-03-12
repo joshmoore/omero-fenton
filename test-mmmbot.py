@@ -88,6 +88,12 @@ class TestMmmBot(unittest.TestCase):
         r = b.lunch('Lunch?', 'User')
         self.assertTrue(r, r.startswith('%botsnack '))
 
+        r = b.lunch('LunchTime...', 'User')
+        self.assertTrue(r, r.startswith('%botsnack '))
+
+        r = b.lunch('Lunchtim', 'User')
+        self.assertIsNone(r)
+
 
 
     def test_muc_message(self):

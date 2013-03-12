@@ -221,7 +221,7 @@ class MmmBot(sleekxmpp.ClientXMPP):
             '^[%s]*(.*?)[%s]*$' %(repunc, repunc), re.DOTALL)
         self._beer_rec = re.compile('(^|[%s])beers?($|[%s])' % (repunc, repunc),
                                     re.IGNORECASE)
-        self._lunch_rec = re.compile('(^|[%s])lunch($|[%s])' % (repunc, repunc),
+        self._lunch_rec = re.compile('(^|[%s])lunch(time)?($|[%s])' % (repunc, repunc),
                                      re.IGNORECASE)
 
     def _get_exact_greetings(self):
