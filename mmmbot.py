@@ -166,7 +166,7 @@ class MmmBot(sleekxmpp.ClientXMPP):
         body = str(msg['body'])
         if mucnick != self.nick and mucnick.find('-bot') < 0:
             funcs = [self.fuzzy_greeting, self.exact_greeting, self.beer,
-                     self.lunch]
+                     self.lunch, self.coffee]
             for f in funcs:
                 reply = f(body, mucnick)
                 if reply:

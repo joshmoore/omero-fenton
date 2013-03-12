@@ -135,6 +135,12 @@ class TestMmmBot(unittest.TestCase):
         self.assertNotEqual(b.messages[0][1], u'%botsnack be\u202ere')
         self.assertTrue(b.messages[0][1].startswith('%botsnack '))
 
+        b = self.create_bot()
+        msg = self.create_message('Time for coffee')
+        b.muc_message(msg)
+        self.assertEqual(len(b.messages), 1)
+        self.assertTrue(b.messages[0][1].startswith('%botsnack '))
+
 
 
 
