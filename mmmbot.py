@@ -205,7 +205,7 @@ class MmmBot(sleekxmpp.ClientXMPP):
     def lunch(self, body, user):
         reply = None
         food = ['chips', 'caviar', 'arbroath smokie', 'cheese', 'haggis',
-                'deep-fried mars bar', 'pies', 'horse', 'curry']
+                'deep-fried mars bar', 'pies', 'duck-billed platypus', 'curry']
         if self._lunch_rec.search(body):
             reply = u'%%botsnack %s' % choice(food)
         return reply
