@@ -63,7 +63,7 @@ def is_morning(s, nick=None):
     refs = [''.join(x) for x in itertools.product(refs1, refs2)]
     logging.debug('Reference messages: %s', refs)
 
-    resp1 = ['morning', 'morning', 'hello', 'hi']
+    resp1 = ['Morning', 'Morning', 'Hello', 'Hi']
     resp2 = [''] * len(refs2)
     resp = [''.join(x) for x in itertools.product(resp1, resp2)]
 

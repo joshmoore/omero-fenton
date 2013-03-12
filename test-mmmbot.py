@@ -44,10 +44,10 @@ class TestMmmBot(unittest.TestCase):
         b = self.create_bot()
 
         r = b.fuzzy_greeting('M-o-R-n-I-n-G', 'User')
-        self.assertEqual(r, 'morning User')
+        self.assertEqual(r, 'Morning User')
 
         r = b.fuzzy_greeting('Helllllooooooooo\nAll', 'User')
-        self.assertEqual(r, 'hello User')
+        self.assertEqual(r, 'Hello User')
 
         r = b.fuzzy_greeting('Helllllooooooooo Someone', 'User')
         self.assertIsNone(r)
@@ -101,7 +101,7 @@ class TestMmmBot(unittest.TestCase):
         msg = self.create_message('>>>>> Gooooooood moooooorning everyone!!!')
         b.muc_message(msg)
         self.assertEqual(b.messages,
-                         [('Message from', 'morning User', 'groupchat')])
+                         [('Message from', 'Morning User', 'groupchat')])
 
         b = self.create_bot()
         msg = self.create_message(u'>>>>> こんにちは!!!')
