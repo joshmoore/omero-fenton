@@ -25,7 +25,10 @@ import itertools
 import string
 import re
 from random import choice
+import MmmTwitter
 
+import signal
+import sys
 
 # Python versions before 3.0 do not use UTF-8 encoding
 # by default. To ensure that Unicode is handled properly
@@ -258,7 +261,6 @@ class MmmBot(sleekxmpp.ClientXMPP):
 
 
 
-
 if __name__ == '__main__':
     # Setup the command line arguments.
     optp = OptionParser()
@@ -307,6 +309,38 @@ if __name__ == '__main__':
     xmpp.register_plugin('xep_0045') # Multi-User Chat
     xmpp.register_plugin('xep_0199') # XMPP Ping
 
+
+    mt = MmmTwitter.MmmTwitter()
+    def twitter_init():
+        def twitter_callback(m):
+            xmpp.send_message(mto=opts.room, mbody=m, mtype='groupchat')
+        mt.add_callback(twitter_callback)
+        mt.run()
+
+    def signal_handler(signal, frame):
+        print 'You pressed Ctrl+C!'
+        try:
+            logging.debug('Calling xmpp.scheduler.quit()')
+            xmpp.scheduler.quit()
+        except Exception as e:
+            logging.info(e)
+
+        try:
+            logging.debug('Calling mt.stop()')
+            mt.stop()
+        except Exception as e:
+            logging.info(e)
+
+        try:
+            logging.debug('Calling xmpp.abort()')
+            xmpp.abort()
+        except Exception as e:
+            logging.info(e)
+
+        logging.info('Calling sys.exit(2)')
+        sys.exit(2)
+
+
     # Connect to the XMPP server and start processing XMPP stanzas.
     if xmpp.connect():
         # If you do not have the dnspython library installed, you will need
@@ -316,7 +350,11 @@ if __name__ == '__main__':
         #
         # if xmpp.connect(('talk.google.com', 5222)):
         #     ...
-        xmpp.process(block=True)
+        signal.signal(signal.SIGINT, signal_handler)
+        #xmpp.process(block=True)
+        xmpp.process(block=False)
+        #xmpp.schedule('twitter', 10, twitter_init)
+        twitter_init()
         print("Done")
     else:
         print("Unable to connect.")
