@@ -52,21 +52,21 @@ def get_auth(filename=cfg):
     return auth
 
 
-def get_client(resource=None):
+def get_client(resource=None, block=True):
     auth = get_auth()
 
     if resource is None:
-        client = twitter.Twitter(auth=auth)
+        client = twitter.Twitter(auth=auth, block=block)
     elif resource == 'stream':
-        client = twitter.TwitterStream(auth=auth)
+        client = twitter.TwitterStream(auth=auth, block=block)
     elif resource == 'userstream':
         client = twitter.TwitterStream(
-            auth=auth, domain="userstream.twitter.com")
+            auth=auth, domain="userstream.twitter.com", block=block)
     else:
         raise Exception('Unknown resource')
 
     logging.debug('Created Twitter client')
-    return tw
+    return client
 
 
 def format_time(dtstr):
@@ -109,15 +109,25 @@ class MmmTwitter(object):
 
     def __init__(self):
         self.cbs = []
-        pass
+        self._stop = False
 
     def add_callback(self, cb):
         self.cbs.append(cb)
 
+    def stop(self):
+        self._stop = True
+
     def run_one(self):
-        tw = get_client('userstream')
+        tw = get_client('userstream', block=False)
         it = tw.user()
         for t in it:
+            if self._stop:
+                return
+
+            # In non-blocking mode None is sometimes returned
+            if not t:
+                continue
+
             # The first result seems to not be a tweet
             if t.has_key('friends'):
                 logging.debug('Ignore result: %s' % t)
@@ -134,6 +144,7 @@ class MmmTwitter(object):
                 self.run_one()
             except twitter.TwitterHTTPError as e:
                 logging.warn('Twitter error: %s' % e)
-                pass
 
+            if self._stop:
+                break
 
