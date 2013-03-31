@@ -219,6 +219,14 @@ class MmmBot(sleekxmpp.ClientXMPP):
         return reply
 
 
+    def ready(self, body, user):
+        reply = None
+        if self._ready_rec.search(body):
+            reply = u'y'
+        return reply
+
+
+
 
     def _strip(self, s):
         return self._stripper_rec.match(s.lower()).group(1)
@@ -233,6 +241,8 @@ class MmmBot(sleekxmpp.ClientXMPP):
                                      re.IGNORECASE)
         self._coffee_rec = re.compile('(^|[%s])coffee($|[%s])' % (repunc, repunc),
                                       re.IGNORECASE)
+        self._ready_rec = re.compile('(^[%s]*)ready([%s]*$)' % (repunc, repunc),
+                                     re.IGNORECASE)
 
     def _get_exact_greetings(self):
         d = os.path.dirname( __file__ )

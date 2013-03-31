@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import unittest
-from mmmbot import MmmBot
+from MmmBot import MmmBot
 
 
 class MmmBotTestWrapper(MmmBot):
@@ -100,6 +100,17 @@ class TestMmmBot(unittest.TestCase):
 
         r = b.coffee('Coffee?', 'User')
         self.assertTrue(r.startswith('%botsnack '))
+
+
+
+    def test_ready(self):
+        b = self.create_bot()
+
+        r = b.ready('.ready?', 'User')
+        self.assertEqual(r, 'y')
+
+        r = b.ready('xready?', 'User')
+        self.assertIsNone(r)
 
 
 
