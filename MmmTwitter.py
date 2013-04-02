@@ -114,11 +114,12 @@ class MmmTwitter(object):
     def add_callback(self, cb):
         self.cbs.append(cb)
 
-    def stop(self):
+    def close(self):
         self._stop = True
 
     def run_one(self):
-        tw = get_client('userstream', block=False)
+        #tw = get_client('userstream', block=False)
+        tw = get_client('userstream', block=True)
         it = tw.user()
         for t in it:
             if self._stop:
@@ -128,15 +129,18 @@ class MmmTwitter(object):
             if not t:
                 continue
 
-            # The first result seems to not be a tweet
-            if t.has_key('friends'):
-                logging.debug('Ignore result: %s' % t)
-                continue
-
-            tstr = format_tweet(t)
-            for cb in self.cbs:
-                logging.debug('Calling callback (%s)' % tstr)
-                cb(tstr)
+            try:
+                # Results (particularly the first one) may not be tweets
+                tstr = format_tweet(t)
+                for cb in self.cbs:
+                    logging.debug('Calling callback (%s)' % tstr)
+                    cb(tstr)
+            except KeyError:
+                e = 'Failed to format tweet: %s' % t
+                logging.debug(e)
+                if len(e) > 80:
+                    e = e[:77] + '...'
+                logging.info(e[:80])
 
     def run(self):
         while True:
@@ -148,3 +152,11 @@ class MmmTwitter(object):
             if self._stop:
                 break
 
+
+def initialise(xmpp):
+    def twitter_callback(m):
+        xmpp.send_message(mto=xmpp.room, mbody=m, mtype='groupchat')
+
+    mt = MmmTwitter()
+    mt.add_callback(twitter_callback)
+    return mt
