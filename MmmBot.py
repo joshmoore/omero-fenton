@@ -208,7 +208,7 @@ class MmmBot(sleekxmpp.ClientXMPP):
         body = str(msg['body'])
         if mucnick != self.nick and mucnick.find('-bot') < 0:
             funcs = [self.fuzzy_greeting, self.exact_greeting, self.beer,
-                     self.lunch, self.coffee]
+                     self.lunch, self.coffee, self.ready, self.shutup]
             for f in funcs:
                 reply = f(body, mucnick)
                 if reply:
@@ -267,6 +267,11 @@ class MmmBot(sleekxmpp.ClientXMPP):
             reply = u'y'
         return reply
 
+
+    def shutup(self, body, user):
+        if body == 'shut-up mmm-bot':
+            logging.info('shut-up received')
+            self.close(2)
 
 
 
