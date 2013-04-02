@@ -3,20 +3,22 @@ import HTMLParser
 import twitter
 import datetime, time
 import logging
-
-cfg = 'test.cfg'
-
+import sys
 
 
-def get_auth(filename=cfg):
+
+def get_auth(filename=None, config=None, dance=False):
     """
     Get an authentication object that can be passed to a twitter client.
     Note this doesn't actually check the OAuth credentials are valid.
     """
 
-    p = ConfigParser.SafeConfigParser()
-    if not p.read(filename):
-        raise Exception('Invalid configuration file: %s' % filename)
+    if config:
+        p = config
+    else:
+        p = ConfigParser.SafeConfigParser()
+        if not p.read(filename):
+            raise Exception('Invalid configuration file: %s' % filename)
 
     try:
         consumer_key = p.get('twitter', 'consumer_key')
@@ -24,7 +26,7 @@ def get_auth(filename=cfg):
         consumer_secret = p.get('twitter', 'consumer_secret')
         logging.debug('consumer secret: %s' % consumer_secret)
 
-    except (NoOptionError, NoSectionError) as e:
+    except (ConfigParser.NoOptionError, ConfigParser.NoSectionError) as e:
         raise Exception('No application consumer key/secret found, '
                         'please create one at '
                         'https://dev.twitter.com/apps/ '
@@ -37,7 +39,11 @@ def get_auth(filename=cfg):
         logging.debug('oauth_token_secret: %s' % oauth_token_secret)
 
     except ConfigParser.NoOptionError:
-        logging.debug('OAuth token not found')
+        logging.error('OAuth token not found')
+        if not dance:
+            logging.error('Please create an OAuth token')
+            return
+
         oauth_token, oauth_token_secret = twitter.oauth_dance(
             'T2X', consumer_key, consumer_secret)
         p.set('twitter', 'oauth_token', oauth_token)
@@ -52,9 +58,7 @@ def get_auth(filename=cfg):
     return auth
 
 
-def get_client(resource=None, block=True):
-    auth = get_auth()
-
+def get_client(resource=None, auth=None, block=True):
     if resource is None:
         client = twitter.Twitter(auth=auth, block=block)
     elif resource == 'stream':
@@ -107,9 +111,10 @@ def format_tweet(t):
 
 class MmmTwitter(object):
 
-    def __init__(self):
+    def __init__(self, config=None):
         self.cbs = []
         self._stop = False
+        self.config = config
 
     def add_callback(self, cb):
         self.cbs.append(cb)
@@ -118,8 +123,9 @@ class MmmTwitter(object):
         self._stop = True
 
     def run_one(self):
-        #tw = get_client('userstream', block=False)
-        tw = get_client('userstream', block=True)
+        auth = get_auth(config=self.config)
+        #tw = get_client('userstream', auth=auth, block=False)
+        tw = get_client('userstream', auth=auth, block=True)
         it = tw.user()
         for t in it:
             if self._stop:
@@ -153,10 +159,23 @@ class MmmTwitter(object):
                 break
 
 
-def initialise(xmpp):
+def initialise(xmpp, config):
     def twitter_callback(m):
         xmpp.send_message(mto=xmpp.room, mbody=m, mtype='groupchat')
 
-    mt = MmmTwitter()
+    mt = MmmTwitter(config)
     mt.add_callback(twitter_callback)
     return mt
+
+
+def main():
+    """
+    Check whether an OAuth token exists, if not then attempt to create one.
+    """
+    if len(sys.argv) != 2:
+        sys.stderr.write('Configuration file must be specified\n')
+        sys.exit(2)
+    get_auth(filename=sys.argv[1], dance=True)
+
+if __name__ == '__main__':
+    main()

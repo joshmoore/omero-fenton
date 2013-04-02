@@ -14,6 +14,7 @@ import os.path
 import logging
 import getpass
 from optparse import OptionParser
+import ConfigParser
 
 import sleekxmpp
 
@@ -305,7 +306,9 @@ class MmmBot(sleekxmpp.ClientXMPP):
 
 
 
-if __name__ == '__main__':
+
+
+def main():
     # Setup the command line arguments.
     optp = OptionParser()
 
@@ -330,20 +333,37 @@ if __name__ == '__main__':
     optp.add_option("-n", "--nick", dest="nick",
                     help="MUC nickname")
 
+    # Configuration file
+    optp.add_option("-f", "--config", dest="config",
+                    help="Configuration file")
+
     opts, args = optp.parse_args()
+
+    config = ConfigParser.SafeConfigParser()
+    if opts.config:
+        if not config.read(opts.config):
+            raise Exception('Invalid configuration file: %s' % opts.config)
 
     # Setup logging.
     logging.basicConfig(level=opts.loglevel,
                         format='%(levelname)-8s %(message)s')
 
-    if opts.jid is None:
-        opts.jid = raw_input("Username: ")
+    # Check opts followed by config file for parameters
+    def opts_or_config(o, c, n):
+        if o is None:
+            try:
+                o = config.get('mmmbot', c)
+            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+                if n:
+                    o = raw_input("%s: " % n)
+        return o
+
+    opts.jid = opts_or_config(opts.jid, 'jid', 'Username')
+    opts.password = opts_or_config(opts.password, 'password', None)
     if opts.password is None:
         opts.password = getpass.getpass("Password: ")
-    if opts.room is None:
-        opts.room = raw_input("MUC room: ")
-    if opts.nick is None:
-        opts.nick = raw_input("MUC nickname: ")
+    opts.room = opts_or_config(opts.room, 'room', 'MUC room')
+    opts.nick = opts_or_config(opts.nick, 'nick', 'MUC nickname')
 
     # Setup the MUCBot and register plugins. Note that while plugins may
     # have interdependencies, the order in which you register them does
@@ -372,9 +392,13 @@ if __name__ == '__main__':
         xmpp.process(block=False)
 
         #xmpp.schedule('twitter', 10, twitter_init)
-        mt = MmmTwitter.initialise(xmpp)
+        mt = MmmTwitter.initialise(xmpp, config)
         xmpp.add_output_plugin(mt)
 
         print("Done")
     else:
         print("Unable to connect.")
+
+
+if __name__ == '__main__':
+    main()
