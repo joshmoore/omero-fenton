@@ -23,6 +23,20 @@ class MmmBotTestWrapper(MmmBot):
     def send_message(self, mto, mbody, mtype):
         self.messages.append((mto, mbody, mtype))
 
+    def abort(self):
+        pass
+
+
+class TestPlugin(object):
+    def __init__(self):
+        self.running = False
+        self.closed = False
+
+    def run(self):
+        self.running = True
+
+    def close(self):
+        self.closed = True
 
 
 class TestMmmBot(unittest.TestCase):
@@ -38,6 +52,18 @@ class TestMmmBot(unittest.TestCase):
 
         msg = {'mucnick': nick, 'body': body, 'from': Bare()}
         return msg
+
+
+    def test_close_plugin(self):
+        b = self.create_bot()
+        p = TestPlugin()
+
+        b.add_output_plugin(p)
+        self.assertTrue(p.running)
+        self.assertFalse(p.closed)
+
+        b.close()
+        self.assertTrue(p.closed)
 
 
     def test_fuzzy_greeting(self):

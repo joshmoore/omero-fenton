@@ -15,9 +15,6 @@ import logging
 import getpass
 from optparse import OptionParser
 
-# Don't use the system version, might be out of date
-sys.path.insert(0, os.path.join(
-        os.path.dirname( __file__ ), 'SleekXMPP/build/lib'))
 import sleekxmpp
 
 from difflib import SequenceMatcher
@@ -26,9 +23,9 @@ import string
 import re
 from random import choice
 import MmmTwitter
-
 import signal
-import sys
+
+
 
 # Python versions before 3.0 do not use UTF-8 encoding
 # by default. To ensure that Unicode is handled properly
@@ -98,6 +95,8 @@ class MmmBot(sleekxmpp.ClientXMPP):
         self._get_compiled_res()
         self._get_exact_greetings()
 
+        self._output_plugins = []
+
         # The session_start event will be triggered when
         # the bot establishes its connection with the server
         # and the XML streams are ready for use. We want to
@@ -120,6 +119,20 @@ class MmmBot(sleekxmpp.ClientXMPP):
         #                       self.muc_online)
 
 
+    def add_output_plugin(self, op):
+        self._output_plugins.append(op)
+        logging.debug('Added output plugin %s' % op)
+        try:
+            op.run()
+            logging.debug('Running output plugin %s' % op)
+        except Exception as e:
+            logging.error('[%s].run() failed: %s' % (op, e))
+            try:
+                op.close()
+            except Exception as e:
+                logging.error('[%s].close() failed: %s' % (op, e))
+
+
     def start(self, event):
         """
         Process the session_start event.
@@ -140,6 +153,32 @@ class MmmBot(sleekxmpp.ClientXMPP):
                                         # If a room password is needed, use:
                                         # password=the_room_password,
                                         wait=True)
+
+
+    def close(self, ret=None):
+        try:
+            logging.debug('Calling scheduler.quit()')
+            self.scheduler.quit()
+        except Exception as e:
+            logging.info(e)
+
+        for op in self._output_plugins:
+            try:
+                logging.debug('Calling [%s].close()' % op)
+                op.close()
+            except Exception as e:
+                logging.error('[%s].close() failed: %s' % (op, e))
+
+        try:
+            logging.debug('Calling abort()')
+            self.abort()
+        except Exception as e:
+            logging.error(e)
+
+        if ret is not None:
+            logging.debug('Calling sys.exit(%d)' % ret)
+            sys.exit(ret)
+
 
     def muc_message(self, msg):
         """
@@ -310,36 +349,9 @@ if __name__ == '__main__':
     xmpp.register_plugin('xep_0199') # XMPP Ping
 
 
-    mt = MmmTwitter.MmmTwitter()
-    def twitter_init():
-        def twitter_callback(m):
-            xmpp.send_message(mto=opts.room, mbody=m, mtype='groupchat')
-        mt.add_callback(twitter_callback)
-        mt.run()
-
-    def signal_handler(signal, frame):
-        print 'You pressed Ctrl+C!'
-        try:
-            logging.debug('Calling xmpp.scheduler.quit()')
-            xmpp.scheduler.quit()
-        except Exception as e:
-            logging.info(e)
-
-        try:
-            logging.debug('Calling mt.stop()')
-            mt.stop()
-        except Exception as e:
-            logging.info(e)
-
-        try:
-            logging.debug('Calling xmpp.abort()')
-            xmpp.abort()
-        except Exception as e:
-            logging.info(e)
-
-        logging.info('Calling sys.exit(2)')
-        sys.exit(2)
-
+    def shutdown_handler(signal=None, frame=None):
+        logging.info('Shut-down signal received')
+        xmpp.close(1)
 
     # Connect to the XMPP server and start processing XMPP stanzas.
     if xmpp.connect():
@@ -350,11 +362,14 @@ if __name__ == '__main__':
         #
         # if xmpp.connect(('talk.google.com', 5222)):
         #     ...
-        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGINT, shutdown_handler)
         #xmpp.process(block=True)
         xmpp.process(block=False)
+
         #xmpp.schedule('twitter', 10, twitter_init)
-        twitter_init()
+        mt = MmmTwitter.initialise(xmpp)
+        xmpp.add_output_plugin(mt)
+
         print("Done")
     else:
         print("Unable to connect.")
