@@ -112,6 +112,7 @@ class MmmBot(sleekxmpp.ClientXMPP):
         # register a handler for the 'message' event, MUC messages
         # will be processed by both handlers.
         self.add_event_handler("groupchat_message", self.muc_message)
+        self.add_event_handler("message", self.message)
 
         # The groupchat_presence event is triggered whenever a
         # presence stanza is received from any chat room, including
@@ -228,6 +229,17 @@ class MmmBot(sleekxmpp.ClientXMPP):
                                       mtype='groupchat')
                     return
 
+
+    def message(self, msg):
+        if msg['type'] in ('chat', 'normal'):
+            logging.info('Received direct message:%s from:%s body:%s' % (
+                    msg, msg['from'].bare, msg['body']))
+
+        if msg['body'] == 'shut-up mmm-bot':
+            admins = self.get_config_option('botadmins')
+            if admins:
+                if msg['from'].bare in admins.split():
+                    logging.info('Admin message received')
 
 
     def fuzzy_greeting(self, body, user):
