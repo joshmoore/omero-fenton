@@ -87,11 +87,13 @@ class MmmBot(sleekxmpp.ClientXMPP):
     that mentions the bot's nickname.
     """
 
-    def __init__(self, jid, password, room, nick):
+    def __init__(self, jid, password, room, nick, config=None):
         sleekxmpp.ClientXMPP.__init__(self, jid, password)
 
         self.room = room
         self.nick = nick
+
+        self.config = config
 
         self._get_compiled_res()
         self._get_exact_greetings()
@@ -119,6 +121,13 @@ class MmmBot(sleekxmpp.ClientXMPP):
         #self.add_event_handler("muc::%s::got_online" % self.room,
         #                       self.muc_online)
 
+    def get_config_option(self, key):
+        try:
+            val = self.config.get('mmmbot', key)
+        except Exception as e:
+            logging.error('get_config_option: %s' % e)
+            val = None
+        return val
 
     def add_output_plugin(self, op):
         self._output_plugins.append(op)
@@ -368,7 +377,7 @@ def main():
     # Setup the MUCBot and register plugins. Note that while plugins may
     # have interdependencies, the order in which you register them does
     # not matter.
-    xmpp = MmmBot(opts.jid, opts.password, opts.room, opts.nick)
+    xmpp = MmmBot(opts.jid, opts.password, opts.room, opts.nick, config)
     xmpp.register_plugin('xep_0030') # Service Discovery
     xmpp.register_plugin('xep_0045') # Multi-User Chat
     xmpp.register_plugin('xep_0199') # XMPP Ping
