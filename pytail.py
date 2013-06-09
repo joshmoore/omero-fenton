@@ -55,3 +55,49 @@ class PyTail(object):
     def __iter__(self):
         return self.tail()
 
+
+
+def default_message_cb(m):
+    print 'MESSAGE: %s' % m
+
+def default_log_start_f(line):
+    return not line.startswith(' ')
+
+class LogParser(object):
+
+    def __init__(self, filename, message_cb=default_message_cb,
+                 log_start_f=default_log_start_f):
+        self.tail = PyTail(filename, 2)
+        self.message_cb = message_cb
+        self.log_start_f = log_start_f
+        self.current = None
+        self.next = None
+
+    def parse(self):
+        self.current = self.next
+        self.next = None
+
+        for line in self.tail:
+            if self.got_line(line):
+                self.message_cb(self.current)
+                self.current = self.next
+                self.next = None
+
+    def got_line(self, line):
+        if line is None and self.current is not None:
+            return True
+
+        if self.log_start_f(line):
+            if self.current is None:
+                self.current = line
+                return False
+            else:
+                self.next = line
+                return True
+        else:
+            if self.current is not None:
+                self.current += line
+            # Else we must have started in the middle of a message- ignore
+            return False
+
+
