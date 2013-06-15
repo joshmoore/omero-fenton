@@ -5,14 +5,15 @@ import sys
 import os.path
 import logging
 import getpass
-from optparse import OptionParser
+import argparse
 import ConfigParser
-
+import re
+import string
 import sleekxmpp
 
-import pytail
+import taillog
 import signal
-
+import threading
 
 
 # Python versions before 3.0 do not use UTF-8 encoding
@@ -61,6 +62,8 @@ class OmeroArse(sleekxmpp.ClientXMPP):
         #self.add_event_handler("muc::%s::got_online" % self.room,
         #                       self.muc_online)
 
+        self.reporters = []
+
     def get_config_option(self, key):
         try:
             val = self.config.get('mmmbot', key)
@@ -93,19 +96,6 @@ class OmeroArse(sleekxmpp.ClientXMPP):
 
     def close(self, ret=None):
         try:
-            logging.debug('Calling scheduler.quit()')
-            self.scheduler.quit()
-        except Exception as e:
-            logging.info(e)
-
-        for op in self._output_plugins:
-            try:
-                logging.debug('Calling [%s].close()' % op)
-                op.close()
-            except Exception as e:
-                logging.error('[%s].close() failed: %s' % (op, e))
-
-        try:
             logging.debug('Calling abort()')
             self.abort()
         except Exception as e:
@@ -122,21 +112,6 @@ class OmeroArse(sleekxmpp.ClientXMPP):
         that if you also have any handlers for the 'message' event,
         message stanzas may be processed by both handlers, so check
         the 'type' attribute when using a 'message' event handler.
-
-        Whenever the bot's nickname is mentioned, respond to
-        the message.
-
-        IMPORTANT: Always check that a message is not from yourself,
-                   otherwise you will create an infinite loop responding
-                   to your own messages.
-
-        This handler will reply to messages that mention
-        the bot's nickname.
-
-        Arguments:
-            msg -- The received message stanza. See the documentation
-                   for stanza objects and the Message stanza to see
-                   how it may be used.
         """
 
         # We're in unicode mode, assume all strings are unicode
@@ -159,84 +134,99 @@ class OmeroArse(sleekxmpp.ClientXMPP):
             logging.info('Received direct message:%s from:%s body:%s' % (
                     msg, msg['from'].bare, msg['body']))
 
-        if msg['body'] == 'shut-up mmm-bot':
+        if msg['body'] == 'shut-up ' + self.nick:
             admins = self.get_config_option('botadmins')
             if admins:
                 if msg['from'].bare in admins.split():
                     logging.info('Admin message received')
+                    self.close(0)
 
 
-    def got_log(self, body, user):
+    def log_message(self, logmsg):
+        logging.info('Sending: %s', logmsg)
+        self.send_message(mto=self.room, mbody=logmsg, mtype='groupchat')
+
+    #def send_message(self, mto, mbody, mtype):
+    #    print mto, mtype, mbody
+
+
+    def status(self, body, nick):
+        logging.debug(body)
         reply = None
-        m = taillog.log_start_re.match(body)
-        if m and m.groupdict()['level'] in ('WARN', 'ERROR'):
-            reply = m
+        repunc = re.escape(string.punctuation)
+        pattern = '(^|[%s\s])%s([%s\s]|$)' % (repunc, self.nick, repunc)
+        if re.match(pattern, body, re.IGNORECASE):
+            reply = 'OMERO Adverse Reporting of System Errors\n\n'
+            for r in self.reporters:
+                reply += r.status() + '\n'
         return reply
+
+
+    def add_reporter(self, reporter):
+        self.reporters.append(reporter)
+        t = threading.Thread(target=reporter.start)
+        t.daemon = True
+        t.start()
+
+
+def configure():
+    # Setup the command line arguments.
+    parser = argparse.ArgumentParser('Omero ARSE configuration')
+
+    # Output verbosity options.
+    parser.add_argument('-q', '--quiet', help='set logging to ERROR',
+                        action='store_const', dest='loglevel',
+                        const=logging.ERROR, default=logging.INFO)
+    parser.add_argument('-d', '--debug', help='set logging to DEBUG',
+                        action='store_const', dest='loglevel',
+                        const=logging.DEBUG, default=logging.INFO)
+
+    # Configuration file
+    parser.add_argument('-f', '--config', help='Configuration file', dest='config',
+                        required=True)
+    args = parser.parse_args()
+
+    config = ConfigParser.SafeConfigParser()
+    config.optionxform = str
+    if not config.read(args.config):
+        raise Exception('Invalid configuration file: %s' % args.config)
+
+    mainreq = ['jid', 'password', 'room', 'nick']
+    maincfg = dict(config.items('arsebot'))
+    if any(k not in maincfg for k in mainreq):
+        raise Exception('[arsebot] must contain keys: %s' % mainreq)
+
+    logcfgs = {}
+    for s in config.sections():
+        if s == 'arsebot':
+            continue
+
+        logcfg = dict(config.items(s))
+        for k in logcfg:
+            logcfg[k] = logcfg[k].split(',')
+
+        logcfgs[s] = logcfg
+
+    return args, maincfg, logcfgs
 
 
 
 
 def main():
-    # Setup the command line arguments.
-    optp = OptionParser()
-
-    # Output verbosity options.
-    optp.add_option('-q', '--quiet', help='set logging to ERROR',
-                    action='store_const', dest='loglevel',
-                    const=logging.ERROR, default=logging.INFO)
-    optp.add_option('-d', '--debug', help='set logging to DEBUG',
-                    action='store_const', dest='loglevel',
-                    const=logging.DEBUG, default=logging.INFO)
-    optp.add_option('-v', '--verbose', help='set logging to COMM',
-                    action='store_const', dest='loglevel',
-                    const=5, default=logging.INFO)
-
-    # JID and password options.
-    optp.add_option("-j", "--jid", dest="jid",
-                    help="JID to use")
-    optp.add_option("-p", "--password", dest="password",
-                    help="password to use")
-    optp.add_option("-r", "--room", dest="room",
-                    help="MUC room to join")
-    optp.add_option("-n", "--nick", dest="nick",
-                    help="MUC nickname")
-
-    # Configuration file
-    optp.add_option("-f", "--config", dest="config",
-                    help="Configuration file")
-
-    opts, args = optp.parse_args()
-
-    config = ConfigParser.SafeConfigParser()
-    if opts.config:
-        if not config.read(opts.config):
-            raise Exception('Invalid configuration file: %s' % opts.config)
+    args, maincfg, logcfgs = configure()
 
     # Setup logging.
-    logging.basicConfig(level=opts.loglevel,
+    logging.basicConfig(level=args.loglevel,
                         format='%(levelname)-8s %(message)s')
-
-    # Check opts followed by config file for parameters
-    def opts_or_config(o, c, n):
-        if o is None:
-            try:
-                o = config.get('mmmbot', c)
-            except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-                if n:
-                    o = raw_input("%s: " % n)
-        return o
-
-    opts.jid = opts_or_config(opts.jid, 'jid', 'Username')
-    opts.password = opts_or_config(opts.password, 'password', None)
-    if opts.password is None:
-        opts.password = getpass.getpass("Password: ")
-    opts.room = opts_or_config(opts.room, 'room', 'MUC room')
-    opts.nick = opts_or_config(opts.nick, 'nick', 'MUC nickname')
+    logging.debug(args)
+    logging.debug(maincfg)
+    logging.debug(logcfgs)
 
     # Setup the MUCBot and register plugins. Note that while plugins may
     # have interdependencies, the order in which you register them does
     # not matter.
-    xmpp = MmmBot(opts.jid, opts.password, opts.room, opts.nick, config)
+    xmpp = OmeroArse(maincfg['jid'], maincfg['password'],
+                     maincfg['room'], maincfg['nick'])
     xmpp.register_plugin('xep_0030') # Service Discovery
     xmpp.register_plugin('xep_0045') # Multi-User Chat
     xmpp.register_plugin('xep_0199') # XMPP Ping
@@ -248,6 +238,7 @@ def main():
 
     # Connect to the XMPP server and start processing XMPP stanzas.
     if xmpp.connect():
+    #if True:
         # If you do not have the dnspython library installed, you will need
         # to manually specify the name of the server if it does not match
         # the one in the JID. For example, to use Google Talk you would
@@ -256,16 +247,19 @@ def main():
         # if xmpp.connect(('talk.google.com', 5222)):
         #     ...
         signal.signal(signal.SIGINT, shutdown_handler)
-        #xmpp.process(block=True)
-        xmpp.process(block=False)
 
-        #xmpp.schedule('twitter', 10, twitter_init)
-        mt = MmmTwitter.initialise(xmpp, config)
-        xmpp.add_output_plugin(mt)
+        for group in logcfgs:
+            for filename in logcfgs[group]:
+                name = '%s %s' % (group, os.path.basename(filename))
+                r = taillog.LogReporter(filename, name, xmpp, logcfgs[group][filename])
+                xmpp.add_reporter(r)
 
-        print("Done")
+        xmpp.process(block=True)
+        #xmpp.process(block=False)
+
+        logging.info("Done")
     else:
-        print("Unable to connect.")
+        logging.error("Unable to connect.")
 
 
 if __name__ == '__main__':
