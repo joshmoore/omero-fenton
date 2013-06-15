@@ -93,6 +93,14 @@ class OmeroArse(sleekxmpp.ClientXMPP):
                                         # password=the_room_password,
                                         wait=True)
 
+        # If this is a new room it needs to be configured before anyone else can join.
+        # Not sure how you're meant to do that though.
+        # https://github.com/chatmongers/chatmongers-web-demos/blob/master/muc_event_subscription/mucsetup.py
+        # https://github.com/skinkie/SleekXMPP--XEP-0080-/blob/master/sleekxmpp/plugins/xep_0045.py
+        try:
+            self.plugin['xep_0045'].configureRoom(self.room)
+        except Exception as e:
+            logging.error('xep_0045.configureRoom: %s', e)
 
     def close(self, ret=None):
         try:
@@ -227,6 +235,10 @@ def main():
     # not matter.
     xmpp = OmeroArse(maincfg['jid'], maincfg['password'],
                      maincfg['room'], maincfg['nick'])
+
+    # This may or may not be needed for ['xep_0045'].configureRoom
+    xmpp.register_plugin('xep_0004') # Data Forms
+
     xmpp.register_plugin('xep_0030') # Service Discovery
     xmpp.register_plugin('xep_0045') # Multi-User Chat
     xmpp.register_plugin('xep_0199') # XMPP Ping
