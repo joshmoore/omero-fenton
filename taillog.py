@@ -15,7 +15,7 @@ class LogReporter(object):
                                  '(?P<time>\d\d:\d\d:\d\d,\d\d\d) '
                                  '(?P<level>\w+) ')
         self.max_log_length = 4096
-        self.n_logs_notified = 0
+        self.counts = dict.fromkeys(self.levels, 0)
 
     def is_log_start(self, m):
         logging.debug('is_log_start: %s', m)
@@ -26,7 +26,7 @@ class LogReporter(object):
         logging.debug('log_received: %s', msg)
         level = match.groupdict()['level']
         if level in self.levels:
-            self.n_logs_notified += 1
+            self.counts[level] += 1
             m = '%s: %s:\n%s' % (level, self.name, msg[:self.max_log_length])
             self.arse.log_message(m)
 
@@ -41,8 +41,8 @@ class LogReporter(object):
         self.taillog()
 
     def status(self):
-        m = '%s: filename:%s\n\t%d notified' % (
-            self.name, self.file, self.n_logs_notified)
+        m = '%s:    %s' % (
+            self.name, '  '.join('%s: %d' % c for c in self.counts.iteritems()))
         logging.debug('status: %s', m)
         return m
 
