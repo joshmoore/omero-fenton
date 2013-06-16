@@ -205,13 +205,15 @@ def configure():
         raise Exception('[arsebot] must contain keys: %s' % mainreq)
 
     logcfgs = {}
+    logreq = ['file', 'levels']
     for s in config.sections():
         if s == 'arsebot':
             continue
 
         logcfg = dict(config.items(s))
         for k in logcfg:
-            logcfg[k] = logcfg[k].split(',')
+            if any(k not in logcfg for k in logreq):
+                raise Exception('[%s] must contain keys: %s' % (s, logreq))
 
         logcfgs[s] = logcfg
 
@@ -260,11 +262,12 @@ def main():
         #     ...
         signal.signal(signal.SIGINT, shutdown_handler)
 
-        for group in logcfgs:
-            for filename in logcfgs[group]:
-                name = '%s %s' % (group, os.path.basename(filename))
-                r = taillog.LogReporter(filename, name, xmpp, logcfgs[group][filename])
-                xmpp.add_reporter(r)
+        for name in logcfgs:
+            logcfg = logcfgs[name]
+            filename = logcfg['file']
+            levels = logcfg['levels'].split(',')
+            r = taillog.LogReporter(filename, name, xmpp, levels)
+            xmpp.add_reporter(r)
 
         xmpp.process(block=True)
         #xmpp.process(block=False)
