@@ -10,6 +10,7 @@ import ConfigParser
 import re
 import string
 import sleekxmpp
+import time
 
 import taillog
 import signal
@@ -39,6 +40,8 @@ class OmeroArse(sleekxmpp.ClientXMPP):
         self.nick = nick
 
         self.config = config
+
+        self.started = time.strftime('%Y-%m-%d %H:%M:%S %Z')
 
         # The session_start event will be triggered when
         # the bot establishes its connection with the server
@@ -165,6 +168,7 @@ class OmeroArse(sleekxmpp.ClientXMPP):
         pattern = '(^|[%s\s])%s([%s\s]|$)' % (repunc, self.nick, repunc)
         if re.search(pattern, body, re.IGNORECASE):
             reply = 'OMERO Adverse Reporting of System Errors\n\n'
+            reply += 'Monitoring started: %s\n' % self.started
             for r in self.reporters:
                 reply += r.status() + '\n'
         return reply
