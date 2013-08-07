@@ -163,7 +163,7 @@ class OmeroArse(sleekxmpp.ClientXMPP):
         reply = None
         repunc = re.escape(string.punctuation)
         pattern = '(^|[%s\s])%s([%s\s]|$)' % (repunc, self.nick, repunc)
-        if re.match(pattern, body, re.IGNORECASE):
+        if re.search(pattern, body, re.IGNORECASE):
             reply = 'OMERO Adverse Reporting of System Errors\n\n'
             for r in self.reporters:
                 reply += r.status() + '\n'
