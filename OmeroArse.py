@@ -2,9 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import os.path
 import logging
-import getpass
 import argparse
 import ConfigParser
 import re
@@ -270,7 +268,14 @@ def main():
             logcfg = logcfgs[name]
             filename = logcfg['file']
             levels = logcfg['levels'].split(',')
-            r = taillog.LogReporter(filename, name, xmpp, levels)
+            if 'rate_limit_n' in maincfg and 'rate_limit_t' in maincfg:
+                limitn = int(maincfg['rate_limit_n'])
+                limitt = float(maincfg['rate_limit_t'])
+                r = taillog.LimitLogReporter(
+                    filename, name, xmpp, levels, limitn, limitt)
+            else:
+                r = taillog.LimitLogReporter(filename, name, xmpp, levels)
+
             xmpp.add_reporter(r)
 
         xmpp.process(block=True)
