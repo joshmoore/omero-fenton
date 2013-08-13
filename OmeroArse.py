@@ -268,6 +268,7 @@ def main():
             logcfg = logcfgs[name]
             filename = logcfg['file']
             levels = logcfg['levels'].split(',')
+
             if 'rate_limit_n' in maincfg and 'rate_limit_t' in maincfg:
                 limitn = int(maincfg['rate_limit_n'])
                 limitt = float(maincfg['rate_limit_t'])
@@ -275,6 +276,9 @@ def main():
                     filename, name, xmpp, levels, limitn, limitt)
             else:
                 r = taillog.LimitLogReporter(filename, name, xmpp, levels)
+
+            if 'max_log_length' in maincfg:
+                r.max_log_length = int(maincfg['max_log_length'])
 
             xmpp.add_reporter(r)
 

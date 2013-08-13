@@ -15,7 +15,7 @@ class LogReporter(object):
         self.log_re = re.compile('^(?P<date>\d\d\d\d-\d\d-\d\d) '
                                  '(?P<time>\d\d:\d\d:\d\d,\d\d\d) '
                                  '(?P<level>\w+) ')
-        self.max_log_length = 4096
+        self.max_log_length = 1024
         self.counts = dict.fromkeys(self.levels, 0)
 
     def is_log_start(self, m):
@@ -23,12 +23,17 @@ class LogReporter(object):
         match = self.log_re.match(m) if m else None
         return (match is not None, match)
 
+    def truncate_msg(self, msg):
+        if len(msg) > self.max_log_length:
+            msg = msg[:self.max_log_length] + '...'
+        return msg
+
     def log_received(self, msg, match):
         logging.debug('log_received: %s', msg)
         level = match.groupdict()['level']
         if level in self.levels:
             self.counts[level] += 1
-            m = '%s: %s:\n%s' % (level, self.name, msg[:self.max_log_length])
+            m = '%s: %s:\n%s' % (level, self.name, self.truncate_msg(msg))
             self.arse.log_message(m)
 
     def taillog(self):
@@ -65,7 +70,7 @@ class LimitLogReporter(LogReporter):
         level = match.groupdict()['level']
         if level in self.levels:
             self.counts[level] += 1
-            m = '%s: %s:\n%s' % (level, self.name, msg[:self.max_log_length])
+            m = '%s: %s:\n%s' % (level, self.name, self.truncate_msg(msg))
             self.log_or_limit(m)
 
     def warn_suppress(self):
