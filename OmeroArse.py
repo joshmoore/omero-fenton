@@ -201,13 +201,13 @@ def configure():
     if not config.read(args.config):
         raise Exception('Invalid configuration file: %s' % args.config)
 
-    mainreq = ['jid', 'password', 'room', 'nick']
+    mainreq = ['jid', 'password', 'room', 'nick', 'levels']
     maincfg = dict(config.items('arsebot'))
     if any(k not in maincfg for k in mainreq):
         raise Exception('[arsebot] must contain keys: %s' % mainreq)
 
     logcfgs = {}
-    logreq = ['file', 'levels']
+    logreq = ['file']
     for s in config.sections():
         if s == 'arsebot':
             continue
@@ -264,6 +264,17 @@ def main():
     else:
         r = xmpp.connect()
 
+    def getcfgkey(key, *cfgs, **kwargs):
+        value = None
+        for cfg in cfgs:
+            if key in cfg:
+                value = cfg[key]
+                if 'cast' in kwargs:
+                    value = kwargs['cast'](value)
+                break
+        logging.debug('%s=%s', key, value)
+        return value
+
     if r:
         # If you do not have the dnspython library installed, you will need
         # to manually specify the name of the server if it does not match
@@ -276,19 +287,19 @@ def main():
 
         for name in logcfgs:
             logcfg = logcfgs[name]
-            filename = logcfg['file']
-            levels = logcfg['levels'].split(',')
+            filename = getcfgkey('file', logcfg)
+            levels = getcfgkey('levels', logcfg, maincfg).split(',')
 
-            if 'rate_limit_n' in maincfg and 'rate_limit_t' in maincfg:
-                limitn = int(maincfg['rate_limit_n'])
-                limitt = float(maincfg['rate_limit_t'])
-                r = taillog.LimitLogReporter(
-                    filename, name, xmpp, levels, limitn, limitt)
-            else:
-                r = taillog.LimitLogReporter(filename, name, xmpp, levels)
+            limitn = getcfgkey('rate_limit_n', logcfg, maincfg, cast=int)
+            limitt = getcfgkey('rate_limit_t', logcfg, maincfg, cast=float)
+            matchall = getcfgkey('match_all', logcfg, maincfg, cast=int)
 
-            if 'max_log_length' in maincfg:
-                r.max_log_length = int(maincfg['max_log_length'])
+            r = taillog.LimitLogReporter(
+                filename, name, xmpp, levels, limitn, limitt, matchall)
+
+            loglen = getcfgkey('max_log_length', logcfg, maincfg, cast=int)
+            if loglen:
+                r.max_log_length = loglen
 
             xmpp.add_reporter(r)
 
