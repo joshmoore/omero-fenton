@@ -285,7 +285,7 @@ def main():
         #     ...
         signal.signal(signal.SIGINT, shutdown_handler)
 
-        for name in logcfgs:
+        for name in sorted(logcfgs.keys()):
             logcfg = logcfgs[name]
             filename = getcfgkey('file', logcfg)
             levels = getcfgkey('levels', logcfg, maincfg).split(',')
