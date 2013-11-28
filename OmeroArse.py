@@ -10,6 +10,7 @@ import string
 import sleekxmpp
 import time
 
+import diskmonitor
 import taillog
 import signal
 import threading
@@ -207,25 +208,65 @@ def configure():
         raise Exception('[arsebot] must contain keys: %s' % mainreq)
 
     logcfgs = {}
-    logreq = ['file']
+    othercfgs = {}
     for s in config.sections():
         if s == 'arsebot':
             continue
 
-        logcfg = dict(config.items(s))
-        for k in logcfg:
-            if any(k not in logcfg for k in logreq):
-                raise Exception('[%s] must contain keys: %s' % (s, logreq))
+        if ' ' in s:
+            logcfgs[s] = dict(config.items(s))
+        else:
+            othercfgs[s] = dict(config.items(s))
 
-        logcfgs[s] = logcfg
-
-    return args, maincfg, logcfgs
+    return args, maincfg, logcfgs, othercfgs
 
 
+def getcfgkey(key, *cfgs, **kwargs):
+    value = None
+    for cfg in cfgs:
+        if key in cfg:
+            value = cfg[key]
+            if 'cast' in kwargs:
+                value = kwargs['cast'](value)
+            break
+    logging.debug('%s=%s', key, value)
+    return value
 
+def add_log_reporter(xmpp, name, logcfg, maincfg):
+    logreq = ['file']
+    if any(k not in logcfg for k in logreq):
+        raise Exception('[%s] must contain keys: %s' % (s, logreq))
+
+    filename = getcfgkey('file', logcfg)
+    levels = getcfgkey('levels', logcfg, maincfg).split(',')
+
+    limitn = getcfgkey('rate_limit_n', logcfg, maincfg, cast=int)
+    limitt = getcfgkey('rate_limit_t', logcfg, maincfg, cast=float)
+    matchall = getcfgkey('match_all', logcfg, maincfg, cast=int)
+
+    r = taillog.LimitLogReporter(
+        filename, name, xmpp, levels, limitn, limitt, matchall)
+    loglen = getcfgkey('max_log_length', logcfg, maincfg, cast=int)
+    if loglen:
+        r.max_log_length = loglen
+
+    xmpp.add_reporter(r)
+
+def add_disk_reporter(xmpp, logcfg):
+    logreq = ['path', 'warn1_mb', 'warn2_mb', 'hysteresis_mb']
+    if any(k not in logcfg for k in logreq):
+        raise Exception('[%s] must contain keys: %s' % (s, logreq))
+
+    path = getcfgkey('path', logcfg)
+    warn1 = getcfgkey('warn1_mb', logcfg)
+    warn2 = getcfgkey('warn2_mb', logcfg)
+    hysteresis = getcfgkey('hysteresis_mb', logcfg)
+
+    r = diskmonitor.DiskMonitor(path, xmpp, warn1, warn2, hysteresis, 5)
+    xmpp.add_reporter(r)
 
 def main():
-    args, maincfg, logcfgs = configure()
+    args, maincfg, logcfgs, othercfgs = configure()
 
     # Setup logging.
     logging.basicConfig(level=args.loglevel,
@@ -264,16 +305,6 @@ def main():
     else:
         r = xmpp.connect()
 
-    def getcfgkey(key, *cfgs, **kwargs):
-        value = None
-        for cfg in cfgs:
-            if key in cfg:
-                value = cfg[key]
-                if 'cast' in kwargs:
-                    value = kwargs['cast'](value)
-                break
-        logging.debug('%s=%s', key, value)
-        return value
 
     if r:
         # If you do not have the dnspython library installed, you will need
@@ -285,23 +316,14 @@ def main():
         #     ...
         signal.signal(signal.SIGINT, shutdown_handler)
 
+        for name in sorted(othercfgs.keys()):
+            if name == 'diskmonitor':
+                add_disk_reporter(xmpp, othercfgs[name])
+            else:
+                raise Exception('Invalid configuration section: [%s]', name)
+
         for name in sorted(logcfgs.keys()):
-            logcfg = logcfgs[name]
-            filename = getcfgkey('file', logcfg)
-            levels = getcfgkey('levels', logcfg, maincfg).split(',')
-
-            limitn = getcfgkey('rate_limit_n', logcfg, maincfg, cast=int)
-            limitt = getcfgkey('rate_limit_t', logcfg, maincfg, cast=float)
-            matchall = getcfgkey('match_all', logcfg, maincfg, cast=int)
-
-            r = taillog.LimitLogReporter(
-                filename, name, xmpp, levels, limitn, limitt, matchall)
-
-            loglen = getcfgkey('max_log_length', logcfg, maincfg, cast=int)
-            if loglen:
-                r.max_log_length = loglen
-
-            xmpp.add_reporter(r)
+            add_log_reporter(xmpp, name, logcfgs[name], maincfg)
 
         xmpp.process(block=True)
         #xmpp.process(block=False)
