@@ -253,16 +253,16 @@ def add_log_reporter(xmpp, name, logcfg, maincfg):
     xmpp.add_reporter(r)
 
 def add_disk_reporter(xmpp, logcfg):
-    logreq = ['path', 'warn1_mb', 'warn2_mb', 'hysteresis_mb']
+    logreq = ['path', 'warn_mb', 'hysteresis_mb']
     if any(k not in logcfg for k in logreq):
         raise Exception('[%s] must contain keys: %s' % (s, logreq))
 
     path = getcfgkey('path', logcfg)
-    warn1 = getcfgkey('warn1_mb', logcfg)
-    warn2 = getcfgkey('warn2_mb', logcfg)
-    hysteresis = getcfgkey('hysteresis_mb', logcfg)
+    warnlevels = getcfgkey('warn_mb', logcfg)
+    warnlevels = [int(w) for w in warnlevels.split(',')]
+    hysteresis = getcfgkey('hysteresis_mb', logcfg, cast=int)
 
-    r = diskmonitor.DiskMonitor(path, xmpp, warn1, warn2, hysteresis, 5)
+    r = diskmonitor.DiskMonitor(path, xmpp, warnlevels, hysteresis, 5)
     xmpp.add_reporter(r)
 
 def main():

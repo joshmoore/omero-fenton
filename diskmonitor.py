@@ -5,11 +5,10 @@ import logging
 
 class DiskMonitor(object):
 
-    def __init__(self, path, arse, warn1=2048, warn2=1024, hys=512, delay=60):
+    def __init__(self, path, arse, warnlevels, hys=512, delay=60):
         self.path = path
         self.arse = arse
-        self.warn1 = warn1
-        self.warn2 = warn2
+        self.warnlevels = sorted(warnlevels, reverse=True)
         self.hysteresis = hys
         self.delay = delay
         self.state = 0
@@ -31,18 +30,20 @@ class DiskMonitor(object):
     def check_space(self):
         free_mb, total_mb = self.get_disk_space()
 
-        if free_mb <= self.warn1:
-            logging.debug('free_mb <= warn1')
-            newstate = max(self.state, 1)
-        if free_mb <= self.warn2:
-            logging.debug('free_mb <= warn2')
-            newstate = max(self.state, 2)
-        if free_mb > self.warn2 + self.hysteresis:
-            logging.debug('free_mb > warn2 + hysteresis')
-            newstate = min(self.state, 1)
-        if free_mb > self.warn1 + self.hysteresis:
-            logging.debug('free_mb > warn1 + hysteresis')
-            newstate = min(self.state, 0)
+        newstate = self.state
+        for n in xrange(len(self.warnlevels) - 1, -1, -1):
+            wl = self.warnlevels[n]
+            if free_mb <= wl:
+                logging.debug('free_mb <= warn[%d] (%d)', n, wl)
+                newstate = max(newstate, n + 1)
+                break
+
+        for n in xrange(0, len(self.warnlevels)):
+            wl = self.warnlevels[n] + self.hysteresis
+            if free_mb > wl:
+                logging.debug('free_mb > warn[%d] + hysteresis (%d)', n, wl)
+                newstate = min(newstate, n)
+                break
 
         logging.debug('state current:%s new:%s', self.state, newstate)
         if newstate > self.state:
