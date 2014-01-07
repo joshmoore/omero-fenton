@@ -36,13 +36,20 @@ def configure():
         raise Exception('[%s] must contain keys: %s' % (maincfgname, mainreq))
 
     logcfgs = {}
-    for s in config.sections():
+    for s in sorted(config.sections()):
         if s == maincfgname:
             continue
 
-        if s not in logcfgs:
-            logcfgs[s] = []
-        logcfgs[s].append(dict(config.items(s)))
+        try:
+            logtype, logname = s.split(' ', 1)
+        except ValueError:
+            raise Exception('[%s] must be in the form [logtype name]', s)
+
+        if logtype not in logcfgs:
+            logcfgs[logtype] = []
+        d = dict(config.items(s))
+        d['name'] = logname
+        logcfgs[logtype].append(d)
 
     return args, maincfg, logcfgs
 
