@@ -65,7 +65,7 @@ class LogReporter(object):
 
 class LimitLogReporter(LogReporter):
 
-    def __init__(self, file, name, arse, levels, limitn=None, limitt=None):
+    def __init__(self, file, name, arse, levels, limitn, limitt):
         super(LimitLogReporter, self).__init__(file, name, arse, levels)
         self.rate_limit_n = limitn
         self.rate_limit_t = limitt
@@ -121,9 +121,9 @@ class LimitLogReporter(LogReporter):
 
 class LimitLogAllReporter(LimitLogReporter):
 
-    def __init__(self, file, name, arse, levels, limitn=None, limitt=None):
+    def __init__(self, file, name, arse, levels, limitn, limitt):
         super(LimitLogAllReporter, self).__init__(
-            file, name, arse, levels, limitn=None, limitt=None)
+            file, name, arse, levels, limitn, limitt)
         # Matches all levels
         self.level_wildcard = '*'
         self.counts[self.level_wildcard] = 0
@@ -141,9 +141,9 @@ class LimitLogAllReporter(LimitLogReporter):
 
 class LimitLogDateLevelReporter(LimitLogReporter):
 
-    def __init__(self, file, name, arse, levels, limitn=None, limitt=None):
+    def __init__(self, file, name, arse, levels, limitn, limitt):
         super(LimitLogDateLevelReporter, self).__init__(
-            file, name, arse, levels, limitn=None, limitt=None)
+            file, name, arse, levels, limitn, limitt)
         self.log_re = re.compile('^(?P<date>[A-Z][a-z][a-z] \d\d, \d\d\d\d) '
                                  '(?P<time>\d?\d:\d\d:\d\d [A-Z][A-Z]) ')
         self.loglevel_re = re.compile('^(?P<level>[A-Z]+): ')
