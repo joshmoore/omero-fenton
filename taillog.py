@@ -36,12 +36,21 @@ class LogReporter(object):
             m = '%s: %s:\n%s' % (level, self.name, self.truncate_msg(msg))
             self.arse.log_message(m)
 
+    def parse_error(self, msg):
+        m = 'Log parsing error: %s\n%s' % (self.name, self.truncate_msg(msg))
+        self.arse.log_message(m)
+
     def taillog(self):
         pollint = 2
         block = False
         log = pytail.LogParser(self.file, self.log_received, self.is_log_start,
                                pollint, block)
-        log.parse()
+
+        while True:
+            try:
+                log.parse()
+            except Exception as e:
+                self.parse_error(repr(e))
 
     def start(self):
         self.taillog()
