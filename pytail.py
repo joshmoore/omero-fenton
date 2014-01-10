@@ -1,8 +1,10 @@
 import errno
 import os
+import stat
 import time
 import logging
-
+# Handles pipes properly
+from io import open
 
 
 class PyTail(object):
@@ -18,7 +20,7 @@ class PyTail(object):
         self.current_inode = None
 
     def read_to_end(self, f):
-        for line in f.readlines():
+        for line in f:
             yield line
             self.count += 1
 
@@ -33,7 +35,17 @@ class PyTail(object):
             with open(self.filename) as f:
                 inode = os.fstat(f.fileno()).st_ino
                 if self.current_inode is None:
-                    f.seek(0, 2)
+                    try:
+                        f.seek(0, 2)
+                    except IOError:
+                        # Could be a unix named pipe
+                        try:
+                            ispipe = stat.S_ISFIFO(os.fstat(f.fileno()).st_mode)
+                        except:
+                            ispipe = False
+                        if not ispipe:
+                            raise
+
                 self.current_inode = inode
 
                 while True:
