@@ -134,7 +134,8 @@ class LimitLogAllReporter(LimitLogReporter):
     def log_received(self, msg, match):
         logging.debug('log_received: %s', msg)
         self.counts[self.level_wildcard] += 1
-        m = '%s: %s:\n%s' % (level, self.name, self.truncate_msg(msg))
+        m = '%s: %s:\n%s' % (
+            self.level_wildcard, self.name, self.truncate_msg(msg))
         self.log_or_limit(m)
 
 
