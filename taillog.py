@@ -84,7 +84,7 @@ class LimitLogReporter(LogReporter):
             self.log_or_limit(m)
 
     def warn_suppress(self):
-        m = '%s: Rate limiting messages (%d / %gs)' % (
+        m = '%s: Rate limiting messages (%d / %ds)' % (
             self.name, self.rate_limit_n, self.rate_limit_t)
         self.arse.log_message(m)
 
