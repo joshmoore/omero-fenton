@@ -10,6 +10,8 @@ import string
 import sleekxmpp
 import time
 
+from configurator import configure
+from configurator import getcfgkey
 import diskmonitor
 import taillog
 import signal
@@ -25,6 +27,14 @@ if sys.version_info < (3, 0):
     sys.setdefaultencoding('utf8')
 else:
     raw_input = input
+
+
+logtype_map = {
+    'logdefault': taillog.LimitLogReporter,
+    'logall': taillog.LimitLogAllReporter,
+    'logdatelevel': taillog.LimitLogDateLevelReporter,
+    }
+
 
 
 class OmeroArse(sleekxmpp.ClientXMPP):
@@ -180,72 +190,22 @@ class OmeroArse(sleekxmpp.ClientXMPP):
         t.start()
 
 
-def configure():
-    # Setup the command line arguments.
-    parser = argparse.ArgumentParser('Omero ARSE configuration')
 
-    # Output verbosity options.
-    parser.add_argument('-q', '--quiet', help='set logging to ERROR',
-                        action='store_const', dest='loglevel',
-                        const=logging.ERROR, default=logging.INFO)
-    parser.add_argument('-d', '--debug', help='set logging to DEBUG',
-                        action='store_const', dest='loglevel',
-                        const=logging.DEBUG, default=logging.INFO)
+def add_log_reporter(logtype, xmpp, logcfg, maincfg):
+    logClass = logtype_map[logtype]
 
-    # Configuration file
-    parser.add_argument('-f', '--config', help='Configuration file', dest='config',
-                        required=True)
-    args = parser.parse_args()
-
-    config = ConfigParser.SafeConfigParser()
-    config.optionxform = str
-    if not config.read(args.config):
-        raise Exception('Invalid configuration file: %s' % args.config)
-
-    mainreq = ['jid', 'password', 'room', 'nick', 'levels']
-    maincfg = dict(config.items('arsebot'))
-    if any(k not in maincfg for k in mainreq):
-        raise Exception('[arsebot] must contain keys: %s' % mainreq)
-
-    logcfgs = {}
-    othercfgs = {}
-    for s in config.sections():
-        if s == 'arsebot':
-            continue
-
-        if ' ' in s:
-            logcfgs[s] = dict(config.items(s))
-        else:
-            othercfgs[s] = dict(config.items(s))
-
-    return args, maincfg, logcfgs, othercfgs
-
-
-def getcfgkey(key, *cfgs, **kwargs):
-    value = None
-    for cfg in cfgs:
-        if key in cfg:
-            value = cfg[key]
-            if 'cast' in kwargs:
-                value = kwargs['cast'](value)
-            break
-    logging.debug('%s=%s', key, value)
-    return value
-
-def add_log_reporter(xmpp, name, logcfg, maincfg):
-    logreq = ['file']
+    logreq = ['name', 'file']
     if any(k not in logcfg for k in logreq):
         raise Exception('[%s] must contain keys: %s' % (s, logreq))
 
+    name = getcfgkey('name', logcfg)
     filename = getcfgkey('file', logcfg)
     levels = getcfgkey('levels', logcfg, maincfg).split(',')
 
     limitn = getcfgkey('rate_limit_n', logcfg, maincfg, cast=int)
     limitt = getcfgkey('rate_limit_t', logcfg, maincfg, cast=float)
-    matchall = getcfgkey('match_all', logcfg, maincfg, cast=int)
 
-    r = taillog.LimitLogReporter(
-        filename, name, xmpp, levels, limitn, limitt, matchall)
+    r = logClass(filename, name, xmpp, levels, limitn, limitt)
     loglen = getcfgkey('max_log_length', logcfg, maincfg, cast=int)
     if loglen:
         r.max_log_length = loglen
@@ -266,7 +226,7 @@ def add_disk_reporter(xmpp, logcfg):
     xmpp.add_reporter(r)
 
 def main():
-    args, maincfg, logcfgs, othercfgs = configure()
+    args, maincfg, logcfgs = configure()
 
     # Setup logging.
     logging.basicConfig(level=args.loglevel,
@@ -316,14 +276,15 @@ def main():
         #     ...
         signal.signal(signal.SIGINT, shutdown_handler)
 
-        for name in sorted(othercfgs.keys()):
-            if name == 'diskmonitor':
-                add_disk_reporter(xmpp, othercfgs[name])
-            else:
-                raise Exception('Invalid configuration section: [%s]', name)
-
-        for name in sorted(logcfgs.keys()):
-            add_log_reporter(xmpp, name, logcfgs[name], maincfg)
+        for logtype in logcfgs.keys():
+            for cfg in logcfgs[logtype]:
+                if logtype == 'diskmonitor':
+                    add_disk_reporter(xmpp, cfg)
+                elif logtype in logtype_map:
+                    add_log_reporter(logtype, xmpp, cfg, maincfg)
+                else:
+                    raise Exception(
+                        'Invalid configuration section: [%s]', logtype)
 
         xmpp.process(block=True)
         #xmpp.process(block=False)
