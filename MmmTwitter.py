@@ -58,18 +58,18 @@ def get_auth(filename=None, config=None, dance=False):
     return auth
 
 
-def get_client(resource=None, auth=None, block=True):
+def get_client(resource=None, auth=None):
     if resource is None:
-        client = twitter.Twitter(auth=auth, block=block)
+        client = twitter.Twitter(auth=auth)
     elif resource == 'stream':
-        client = twitter.TwitterStream(auth=auth, block=block)
+        client = twitter.TwitterStream(auth=auth)
     elif resource == 'userstream':
         client = twitter.TwitterStream(
-            auth=auth, domain="userstream.twitter.com", block=block)
+            auth=auth, domain="userstream.twitter.com")
     else:
         raise Exception('Unknown resource')
 
-    logging.debug('Created Twitter client')
+    logging.info('Created Twitter client, resource: %s', resource)
     return client
 
 
@@ -115,6 +115,12 @@ class MmmTwitter(object):
         self.cbs = []
         self._stop = False
         self.config = config
+        self.init_tweeter()
+
+    def init_tweeter(self):
+        # For sending tweets
+        auth = get_auth(config=self.config)
+        self.tweeter = get_client(auth=auth)
 
     def add_callback(self, cb):
         self.cbs.append(cb)
@@ -124,8 +130,7 @@ class MmmTwitter(object):
 
     def run_one(self):
         auth = get_auth(config=self.config)
-        #tw = get_client('userstream', auth=auth, block=False)
-        tw = get_client('userstream', auth=auth, block=True)
+        tw = get_client('userstream', auth=auth)
         it = tw.user()
         for t in it:
             if self._stop:
@@ -157,6 +162,14 @@ class MmmTwitter(object):
 
             if self._stop:
                 break
+
+    def tweet(self, msg):
+        try:
+            self.tweeter.statuses.update(status=msg)
+        except twitter.TwitterHTTPError as e:
+            raise Exception('TwitterHTTPError: %s' % e.response_data)
+        except Exception as e:
+            raise Exception('Unknown Twitter error: %s' % e)
 
 
 def initialise(xmpp, config):

@@ -39,52 +39,10 @@ else:
     raw_input = input
 
 
-def is_morning(s, nick=None):
-    def canonicalise(s):
-        delchars = string.punctuation + string.whitespace
-        if isinstance(s, unicode):
-            deltable = {ord(a): None for a in delchars}
-            s = s.translate(deltable).lower()
-        else:
-            s = s.translate(None, delchars).lower()
-        t = ''.join([a if a != b else '' for a, b in
-                     itertools.izip(s[:-1], s[1:])])
-        return t
-
-    def sim(ref, t):
-        ref = canonicalise(ref)
-        t = canonicalise(t)
-        r = SequenceMatcher(lambda x:x in ' ', ref, t).ratio()
-        return r
-
-    refs1 = ['morning', 'good morning', 'hello', 'hi']
-    refs2 = ['', ' all', ' everyone']
-    if nick:
-        refs2.append(' ' + nick)
-    refs = [''.join(x) for x in itertools.product(refs1, refs2)]
-    logging.debug('Reference messages: %s', refs)
-
-    resp1 = ['Morning', 'Morning', 'Hello', 'Hi']
-    resp2 = [''] * len(refs2)
-    resp = [''.join(x) for x in itertools.product(resp1, resp2)]
-
-    r = map(lambda ref: sim(ref, s), refs)
-    logging.debug('Scores: %s', r)
-    mr = max(r)
-    mri = r.index(mr)
-    return (mr, refs[mri], resp[mri])
-
-
-
-
-
-
-class MmmBot(sleekxmpp.ClientXMPP):
+class JabberTwitterBot(sleekxmpp.ClientXMPP):
 
     """
-    A simple SleekXMPP bot that will greets those
-    who enter the room, and acknowledge any messages
-    that mentions the bot's nickname.
+    A simple SleekXMPP bot that will post Twtitter statuses from Jabber.
     """
 
     def __init__(self, jid, password, room, nick, config=None):
@@ -95,10 +53,8 @@ class MmmBot(sleekxmpp.ClientXMPP):
 
         self.config = config
 
-        self._get_compiled_res()
-        self._get_exact_greetings()
-
         self._output_plugins = []
+        self.twitter = None
 
         # The session_start event will be triggered when
         # the bot establishes its connection with the server
@@ -124,7 +80,7 @@ class MmmBot(sleekxmpp.ClientXMPP):
 
     def get_config_option(self, key):
         try:
-            val = self.config.get('mmmbot', key)
+            val = self.config.get('twitterbot', key)
         except Exception as e:
             logging.error('get_config_option: %s' % e)
             val = None
@@ -143,6 +99,9 @@ class MmmBot(sleekxmpp.ClientXMPP):
             except Exception as e:
                 logging.error('[%s].close() failed: %s' % (op, e))
 
+    def set_twitter(self, twitter):
+        self.twitter = twitter
+        self.add_output_plugin(twitter)
 
     def start(self, event):
         """
@@ -218,8 +177,7 @@ class MmmBot(sleekxmpp.ClientXMPP):
         mucnick = str(msg['mucnick'])
         body = str(msg['body'])
         if mucnick != self.nick and mucnick.find('-bot') < 0:
-            funcs = [self.fuzzy_greeting, self.exact_greeting, self.beer,
-                     self.lunch, self.coffee, self.ready, self.shutup]
+            funcs = [self.tweet, self.status, self.shutup]
             for f in funcs:
                 reply = f(body, mucnick)
                 if reply:
@@ -241,93 +199,37 @@ class MmmBot(sleekxmpp.ClientXMPP):
                 if msg['from'].bare in admins.split():
                     logging.info('Admin message received')
 
-
-    def fuzzy_greeting(self, body, user):
+    def tweet(self, body, nick):
         reply = None
-        s = self._strip(body)
-        r, val, resp = is_morning(s, self.nick)
-        if r > 0.9 or (r > 0.8 and len(val.split()) == 1):
-            reply = '%s %s' %(resp, user)
+        p = '(\s|^)#tweetme(\s|$)'
+        s = body.strip()
+        logging.debug('tweet(%s)', body)
+        if self.twitter and re.search(p, body, re.IGNORECASE):
+            s = re.sub(p, ' ', s, re.IGNORECASE)
+            s = re.sub('\s+', ' ', s)
+            try:
+                logging.info('Tweeting: %s', s)
+                self.twitter.tweet(s)
+                reply = 'Tweet sent'
+            except Exception as e:
+                logging.error('Error: %s', e)
+                reply = str(e)
         return reply
 
-    def exact_greeting(self, body, user):
+    def status(self, body, nick):
+        logging.debug(body)
         reply = None
-        s = self._strip(body)
-        if s in self.greetings_list:
-            reply = '%s %s' %(s, user)
+        repunc = re.escape(string.punctuation)
+        pattern = '(^|[%s\s])%s([%s\s]|$)' % (repunc, self.nick, repunc)
+        if re.search(pattern, body, re.IGNORECASE):
+            reply = ('Hi, I\'m the OME Twitter bot. '
+                     'To tweet from this room include #tweetme in your message')
         return reply
-
-
-
-    def beer(self, body, user):
-        reply = None
-        if self._beer_rec.search(body):
-            reply = u'%botsnack be\u202ere'
-        return reply
-
-
-    def lunch(self, body, user):
-        reply = None
-        food = ['chips', 'caviar', 'Arbroath smokie', 'cheese', 'haggis',
-                'deep-fried mars bar', 'pies', 'duck-billed platypus', 'curry']
-        if self._lunch_rec.search(body):
-            reply = u'%%botsnack %s' % choice(food)
-        return reply
-
-
-    def coffee(self, body, user):
-        reply = None
-        drink = ['instant coffee', 'kopi luwak', 'flat white', 'latte', 'cappuccino']
-        if self._coffee_rec.search(body):
-            reply = u'%%botsnack %s' % choice(drink)
-        return reply
-
-
-    def ready(self, body, user):
-        reply = None
-        if self._ready_rec.search(body):
-            reply = u'y'
-        return reply
-
 
     def shutup(self, body, user):
-        if body == 'shut-up mmm-bot':
+        if body == 'shut-up %s' % self.nick:
             logging.info('shut-up received')
             self.close(2)
-
-
-
-    def _strip(self, s):
-        return self._stripper_rec.match(s.lower()).group(1)
-
-    def _get_compiled_res(self):
-        repunc = re.escape(string.punctuation + string.whitespace)
-        self._stripper_rec = re.compile(
-            '^[%s]*(.*?)[%s]*$' %(repunc, repunc), re.DOTALL)
-        self._beer_rec = re.compile('(^|[%s])beers?($|[%s])' % (repunc, repunc),
-                                    re.IGNORECASE)
-        self._lunch_rec = re.compile('(^|[%s])lunch(time)?($|[%s])' % (repunc, repunc),
-                                     re.IGNORECASE)
-        self._coffee_rec = re.compile('(^|[%s])coffee($|[%s])' % (repunc, repunc),
-                                      re.IGNORECASE)
-        self._ready_rec = re.compile('(^[%s]*)ready([%s]*$)' % (repunc, repunc),
-                                     re.IGNORECASE)
-
-    def _get_exact_greetings(self):
-        d = os.path.dirname( __file__ )
-        filename = os.path.join(d, 'hello.txt')
-        hdict = {}
-        with open(filename) as f:
-            for ln in f:
-                if ln.lstrip().startswith('#'):
-                    continue
-                k, vs = ln.split(':')
-                hdict[k.strip()] = [v.strip() for v in vs.split(',')]
-        self.greetings_list = set(itertools.chain.from_iterable(hdict.values()))
-
-
-
-
 
 def main():
     # Setup the command line arguments.
@@ -373,7 +275,7 @@ def main():
     def opts_or_config(o, c, n):
         if o is None:
             try:
-                o = config.get('mmmbot', c)
+                o = config.get('twitterbot', c)
             except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
                 if n:
                     o = raw_input("%s: " % n)
@@ -389,7 +291,7 @@ def main():
     # Setup the MUCBot and register plugins. Note that while plugins may
     # have interdependencies, the order in which you register them does
     # not matter.
-    xmpp = MmmBot(opts.jid, opts.password, opts.room, opts.nick, config)
+    xmpp = JabberTwitterBot(opts.jid, opts.password, opts.room, opts.nick, config)
     xmpp.register_plugin('xep_0030') # Service Discovery
     xmpp.register_plugin('xep_0045') # Multi-User Chat
     xmpp.register_plugin('xep_0199') # XMPP Ping
@@ -400,7 +302,19 @@ def main():
         xmpp.close(1)
 
     # Connect to the XMPP server and start processing XMPP stanzas.
-    if xmpp.connect():
+    maincfg = dict(config.items('twitterbot'))
+    if 'server' in maincfg:
+        host = maincfg['server']
+        try:
+            host, port = host.rsplit(':', 1)
+            port = int(port)
+        except ValueError:
+            port = 5222
+        r = xmpp.connect((host, port))
+    else:
+        r = xmpp.connect()
+
+    if r:
         # If you do not have the dnspython library installed, you will need
         # to manually specify the name of the server if it does not match
         # the one in the JID. For example, to use Google Talk you would
@@ -412,9 +326,9 @@ def main():
         #xmpp.process(block=True)
         xmpp.process(block=False)
 
-        #xmpp.schedule('twitter', 10, twitter_init)
-        mt = MmmTwitter.initialise(xmpp, config)
-        xmpp.add_output_plugin(mt)
+        xmpp.set_twitter(MmmTwitter.initialise(xmpp, config))
+
+        #xmpp.process(block=True)
 
         print("Done")
     else:
