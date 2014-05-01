@@ -37,7 +37,7 @@ logtype_map = {
 
 
 
-class OmeroArse(sleekxmpp.ClientXMPP):
+class OmeroFenton(sleekxmpp.ClientXMPP):
     """
     OMERO Adverse Reporting of System Events
     """
@@ -238,8 +238,8 @@ def main():
     # Setup the MUCBot and register plugins. Note that while plugins may
     # have interdependencies, the order in which you register them does
     # not matter.
-    xmpp = OmeroArse(maincfg['jid'], maincfg['password'],
-                     maincfg['room'], maincfg['nick'])
+    xmpp = OmeroFenton(maincfg['jid'], maincfg['password'],
+                       maincfg['room'], maincfg['nick'])
 
     # This may or may not be needed for ['xep_0045'].configureRoom
     xmpp.register_plugin('xep_0004') # Data Forms

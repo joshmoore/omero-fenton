@@ -6,11 +6,11 @@ import argparse
 import ConfigParser
 
 
-maincfgname = 'arsebot'
+maincfgname = 'main'
 
 def configure():
     # Setup the command line arguments.
-    parser = argparse.ArgumentParser('Omero ARSE configuration')
+    parser = argparse.ArgumentParser('Omero-Fenton configuration')
 
     # Output verbosity options.
     parser.add_argument('-q', '--quiet', help='set logging to ERROR',

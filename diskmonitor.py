@@ -5,9 +5,9 @@ import logging
 
 class DiskMonitor(object):
 
-    def __init__(self, path, arse, warnlevels, hys=512, delay=60):
+    def __init__(self, path, rep, warnlevels, hys=512, delay=60):
         self.path = path
-        self.arse = arse
+        self.rep = rep
         self.warnlevels = sorted(warnlevels, reverse=True)
         self.hysteresis = hys
         self.delay = delay
@@ -66,7 +66,7 @@ class DiskMonitor(object):
             emph = ('*' * 50 + '\n') * state
         mfree = self.format_free_space(free_mb, total_mb)
         m = '%sDISK SPACE WARNING: %s\n%s' % (emph, mfree, emph)
-        self.arse.log_message(m)
+        self.rep.log_message(m)
 
     def start(self):
         while True:

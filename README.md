@@ -1,5 +1,5 @@
-omero-arse
-==========
+omero-fenton
+===========
 
 OMERO Adverse Reporting of System Errors
 ----------------------------------------
@@ -17,8 +17,8 @@ Python module requirements, install these system wide, or into a Virtualenv:
 Clone this repository:
 
 ```
-git clone https://github.com/alanpartridge/omero-arse.git
-cd omero-arse
+git clone https://github.com/manics/omero-fenton.git
+cd omero-fenton
 ```
 
 Create the configuration file by copying `example.cfg` and editting.
@@ -31,5 +31,5 @@ Create the configuration file by copying `example.cfg` and editting.
 Run the bot from the current directory:
 
 ```
-python OmeroArse.py -f CONFIGURATION.CFG
+python OmeroFenton.py -f CONFIGURATION.CFG
 ```

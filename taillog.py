@@ -6,10 +6,10 @@ import time
 
 class LogReporter(object):
 
-    def __init__(self, file, name, arse, levels):
+    def __init__(self, file, name, rep, levels):
         self.file = file
         self.name = name
-        self.arse = arse
+        self.rep = rep
         self.levels = levels
 
         self.log_re = re.compile('^(?P<date>\d\d\d\d-\d\d-\d\d) '
@@ -34,11 +34,11 @@ class LogReporter(object):
         if level in self.levels:
             self.counts[level] += 1
             m = '%s: %s:\n%s' % (level, self.name, self.truncate_msg(msg))
-            self.arse.log_message(m)
+            self.rep.log_message(m)
 
     def parse_error(self, msg):
         m = 'Log parsing error: %s\n%s' % (self.name, self.truncate_msg(msg))
-        self.arse.log_message(m)
+        self.rep.log_message(m)
 
     def taillog(self):
         pollint = 2
@@ -65,8 +65,8 @@ class LogReporter(object):
 
 class LimitLogReporter(LogReporter):
 
-    def __init__(self, file, name, arse, levels, limitn, limitt):
-        super(LimitLogReporter, self).__init__(file, name, arse, levels)
+    def __init__(self, file, name, rep, levels, limitn, limitt):
+        super(LimitLogReporter, self).__init__(file, name, rep, levels)
         self.rate_limit_n = limitn
         self.rate_limit_t = limitt
         self.ts = []
@@ -86,16 +86,16 @@ class LimitLogReporter(LogReporter):
     def warn_suppress(self):
         m = '%s: Rate limiting messages (%d / %ds)' % (
             self.name, self.rate_limit_n, self.rate_limit_t)
-        self.arse.log_message(m)
+        self.rep.log_message(m)
 
     def output(self, t, msg):
         if self.n_suppressed > 0:
             s = '%s: Rate limit: %d messages not shown' % (
                 self.name, self.n_suppressed)
-            self.arse.log_message(s)
+            self.rep.log_message(s)
             self.n_suppressed = 0
 
-        self.arse.log_message(msg)
+        self.rep.log_message(msg)
         if self.rate_limit_n and self.rate_limit_t:
             self.ts.append(t)
 
@@ -121,9 +121,9 @@ class LimitLogReporter(LogReporter):
 
 class LimitLogAllReporter(LimitLogReporter):
 
-    def __init__(self, file, name, arse, levels, limitn, limitt):
+    def __init__(self, file, name, rep, levels, limitn, limitt):
         super(LimitLogAllReporter, self).__init__(
-            file, name, arse, levels, limitn, limitt)
+            file, name, rep, levels, limitn, limitt)
         # Matches all levels
         self.level_wildcard = '*'
         self.counts[self.level_wildcard] = 0
@@ -142,9 +142,9 @@ class LimitLogAllReporter(LimitLogReporter):
 
 class LimitLogDateLevelReporter(LimitLogReporter):
 
-    def __init__(self, file, name, arse, levels, limitn, limitt):
+    def __init__(self, file, name, rep, levels, limitn, limitt):
         super(LimitLogDateLevelReporter, self).__init__(
-            file, name, arse, levels, limitn, limitt)
+            file, name, rep, levels, limitn, limitt)
         self.log_re = re.compile('^(?P<date>[A-Z][a-z][a-z] \d\d, \d\d\d\d) '
                                  '(?P<time>\d?\d:\d\d:\d\d [A-Z][A-Z]) ')
         self.loglevel_re = re.compile('^(?P<level>[A-Z]+): ')
