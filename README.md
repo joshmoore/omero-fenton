@@ -1,8 +1,8 @@
 omero-fenton
 ===========
 
-OMERO Adverse Reporting of System Errors
-----------------------------------------
+OMERO error logs reporting system
+---------------------------------
 
 This is a jabber bot for monitoring OMERO log files.
 
