@@ -246,7 +246,8 @@ def main():
 
     xmpp.register_plugin('xep_0030') # Service Discovery
     xmpp.register_plugin('xep_0045') # Multi-User Chat
-    xmpp.register_plugin('xep_0199') # XMPP Ping
+    # XMPP Ping (hopefully this will reconnect when the server goes down)
+    xmpp.register_plugin('xep_0199', {'keepalive': True, 'frequency': 60})
 
 
     def shutdown_handler(signal=None, frame=None):
