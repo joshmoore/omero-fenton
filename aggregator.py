@@ -1,0 +1,130 @@
+import datetime
+import logging
+import Queue
+import re
+import smtplib
+import time
+
+
+class AggregateAlerter(object):
+
+    def __init__(self, conditions, delay, interval):
+        """
+        conditions: A 3-tuple of regular expressions which will be matched
+          against (level, name, msg). Use empty or None to ignore a field
+        delay: If a reportable log is received wait for this number of
+          seconds before alerting to gather additional reportable events
+        interval: Don't send another alert until after this time interval
+          in seconds has elapsed
+
+        Events received more than interval seconds ago will be discarded
+        """
+        self.conditions = conditions
+        self.delay = delay
+        self.interval = interval
+
+        self.queue = Queue.Queue()
+        self.alerters = []
+        self.last_event = None
+        self.new_events = False
+
+        logging.debug('conditions:%s delay:%d interval:%d',
+                      self.conditions, self.delay, self.interval)
+
+    def add_alerter(self, alerter):
+        self.alerters.append(alerter)
+
+    def clear_old(self):
+        now = datetime.datetime.utcnow()
+        if (self.last_event and not self.queue.empty() and
+            (now - self.last_event).total_seconds() > self.interval):
+            tmp = self.get_all()
+            logging.info('Discarding %d events', len(tmp))
+
+    def log_received(self, level, name, msg):
+        m = (level, name, msg)
+        if self.reportable(*m):
+            logging.debug('Reportable log_received: %s', m)
+            now = datetime.datetime.utcnow()
+            self.clear_old()
+            self.queue.put(m)
+            self.last_event = now
+            self.new_events = True
+        else:
+            logging.debug('Ignoring log_received: %s', m)
+
+    def get_all(self):
+        msgs = []
+        try:
+            while True:
+                msgs.append(self.queue.get(block=False))
+        except Queue.Empty:
+            pass
+        self.new_events = False
+        return msgs
+
+    def reportable(self, level, name, msg):
+        for (l, n, m) in self.conditions:
+            if l and not re.search(l, level, re.I):
+                continue
+            if n and not re.search(n, name, re.I):
+                continue
+            if m and not re.search(m, msg, re.I):
+                continue
+            return True
+
+    def alert(self):
+        msgs = self.get_all()
+        for r in self.alerters:
+            logging.debug('Alerting: %s', r)
+            r.alert(msgs)
+
+    def start(self):
+        while True:
+            if self.new_events:
+                logging.debug('Sleeping for %ds before emailing', self.delay)
+                time.sleep(self.delay)
+                logging.debug('Alerting: %s', self.alerters)
+                self.alert()
+                logging.debug('Sleeping for %ds', self.interval)
+                time.sleep(self.interval)
+                # Don't alert events that happened during the interval
+                self.new_events = False
+            else:
+                time.sleep(2)
+            last_check = datetime.datetime.utcnow()
+
+class EmailAlerter(object):
+
+    def __init__(self, name, smtp, fromaddr, toaddrs, subject):
+        self.name = name
+        self.smtp = smtp
+        self.fromaddr = fromaddr
+        self.toaddrs = toaddrs
+        self.subject = subject
+        self.max_attempts = 3
+
+    def alert(self, msgs):
+        headers = '\n'.join(['From: %s' % self.fromaddr,
+                             'To: %s' % self.toaddrs,
+                             'Subject: %s' % self.subject])
+        preamble = '%s: %d events detected' % (self.name, len(msgs))
+        formatted = '\n'.join('%s: %s:\n%s' % m for m in msgs)
+
+        email = headers + '\n\n' + preamble + '\n\n' + formatted
+        self.send(email)
+
+    def send(self, email):
+        for a in xrange(self.max_attempts):
+            try:
+                s = smtplib.SMTP(self.smtp)
+                logging.debug('Sending email to %s', self.toaddrs)
+                s.sendmail(self.fromaddr, self.toaddrs, email)
+                s.quit()
+                return
+            except Exception:
+                logging.error('Failed to send email on attempt %d', a + 1)
+
+        logging.error(
+            'Failed to send email after %d attempts', self.max_attempts)
+
