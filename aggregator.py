@@ -106,7 +106,7 @@ class EmailAlerter(object):
 
     def alert(self, msgs):
         headers = '\n'.join(['From: %s' % self.fromaddr,
-                             'To: %s' % self.toaddrs,
+                             'To: %s' % ', '.join(self.toaddrs),
                              'Subject: %s' % self.subject])
         preamble = '%s: %d events detected' % (self.name, len(msgs))
         formatted = '\n'.join('%s: %s:\n%s' % m for m in msgs)
