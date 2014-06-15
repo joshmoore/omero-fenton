@@ -12,11 +12,21 @@ class LogReporter(object):
         self.rep = rep
         self.levels = levels
 
+        self.sinks = []
+
         self.log_re = re.compile('^(?P<date>\d\d\d\d-\d\d-\d\d) '
                                  '(?P<time>\d\d:\d\d:\d\d,\d\d\d) '
                                  '(?P<level>\w+) ')
         self.max_log_length = 1024
         self.counts = dict.fromkeys(self.levels, 0)
+
+    def add_sink(self, sink):
+        logging.debug('Adding sink: %s', sink)
+        self.sinks.append(sink)
+
+    def sink(self, level, name, msg):
+        for s in self.sinks:
+            s.log_received(level, name, msg)
 
     def is_log_start(self, m):
         logging.debug('is_log_start: %s', m)
@@ -35,6 +45,7 @@ class LogReporter(object):
             self.counts[level] += 1
             m = '%s: %s:\n%s' % (level, self.name, self.truncate_msg(msg))
             self.rep.log_message(m)
+        self.sink(level, self.name, msg)
 
     def parse_error(self, msg):
         m = 'Log parsing error: %s\n%s' % (self.name, self.truncate_msg(msg))
@@ -82,6 +93,7 @@ class LimitLogReporter(LogReporter):
             self.counts[level] += 1
             m = '%s: %s:\n%s' % (level, self.name, self.truncate_msg(msg))
             self.log_or_limit(m)
+        self.sink(level, self.name, msg)
 
     def warn_suppress(self):
         m = '%s: Rate limiting messages (%d / %ds)' % (
@@ -137,6 +149,7 @@ class LimitLogAllReporter(LimitLogReporter):
         m = '%s: %s:\n%s' % (
             self.level_wildcard, self.name, self.truncate_msg(msg))
         self.log_or_limit(m)
+        self.sink(self.level_wildcard, self.name, msg)
 
 
 
@@ -161,4 +174,5 @@ class LimitLogDateLevelReporter(LimitLogReporter):
             self.counts[level] += 1
             m = '%s: %s:\n%s' % (level, self.name, self.truncate_msg(msg))
             self.log_or_limit(m)
+            self.sink(level, self.name, msg)
 
