@@ -6,7 +6,6 @@ import logging
 import argparse
 import ast
 import ConfigParser
-import datetime
 import re
 import string
 import sleekxmpp
@@ -273,7 +272,7 @@ def test_email_alerter(logcfgs):
     if logtype in logcfgs:
         for cfg in logcfgs[logtype]:
             e = get_email_alerter(logtype, cfg)
-            t = datetime.datetime.now().isoformat()
+            t = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
             e.alert([('Email alert test', 'test', t)])
 
 

@@ -1,4 +1,3 @@
-import datetime
 import logging
 import Queue
 import re
@@ -35,9 +34,9 @@ class AggregateAlerter(object):
         self.alerters.append(alerter)
 
     def clear_old(self):
-        now = datetime.datetime.utcnow()
+        now = time.time()
         if (self.last_event and not self.queue.empty() and
-            (now - self.last_event).total_seconds() > self.interval):
+            (now - self.last_event) > self.interval):
             tmp = self.get_all()
             logging.info('Discarding %d events', len(tmp))
 
@@ -45,7 +44,7 @@ class AggregateAlerter(object):
         m = (level, name, msg)
         if self.reportable(*m):
             logging.debug('Reportable log_received: %s', m)
-            now = datetime.datetime.utcnow()
+            now = time.time()
             self.clear_old()
             self.queue.put(m)
             self.last_event = now
@@ -92,7 +91,6 @@ class AggregateAlerter(object):
                 self.new_events = False
             else:
                 time.sleep(2)
-            last_check = datetime.datetime.utcnow()
 
 
 class EmailAlerter(object):
@@ -109,7 +107,8 @@ class EmailAlerter(object):
         headers = '\n'.join(['From: %s' % self.fromaddr,
                              'To: %s' % ', '.join(self.toaddrs),
                              'Subject: %s' % self.subject])
-        preamble = 'Alert created: %s' % datetime.datetime.now().isoformat()
+        preamble = 'Alert created: %s' % time.strftime(
+            '%Y-%m-%dT%H:%M:%SZ', time.gmtime())
         formatted = '\n'.join('%s: %s:\n%s' % m for m in msgs)
 
         email = headers + '\n\n' + preamble + '\n\n' + formatted
