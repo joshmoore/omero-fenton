@@ -26,6 +26,7 @@ class AggregateAlerter(object):
         self.alerters = []
         self.last_event = None
         self.new_events = False
+        self.n_discarded = 0
 
         logging.debug('conditions:%s delay:%d interval:%d',
                       self.conditions, self.delay, self.interval)
@@ -38,6 +39,7 @@ class AggregateAlerter(object):
         if (self.last_event and not self.queue.empty() and
             (now - self.last_event) > self.interval):
             tmp = self.get_all()
+            self.n_discarded += len(tmp)
             logging.info('Discarding %d events', len(tmp))
 
     def log_received(self, level, name, msg):
@@ -73,7 +75,11 @@ class AggregateAlerter(object):
             return True
 
     def alert(self):
-        msgs = self.get_all()
+        msgs = []
+        if self.n_discarded:
+            msgs.append(('Suppressed', str(self.n_discarded), ''))
+            self.n_discarded = 0
+        msgs.extend(self.get_all())
         for r in self.alerters:
             logging.debug('Alerting: %s', r)
             r.alert(msgs)
