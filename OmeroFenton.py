@@ -6,6 +6,7 @@ import logging
 import argparse
 import ast
 import ConfigParser
+import datetime
 import re
 import string
 import sleekxmpp
@@ -208,7 +209,7 @@ def add_log_reporter(logtype, xmpp, logcfg, maincfg):
 
     logreq = ['name', 'file']
     if any(k not in logcfg for k in logreq):
-        raise Exception('[%s] must contain keys: %s' % (s, logreq))
+        raise Exception('[%s] must contain keys: %s' % (logtype, logreq))
 
     name = getcfgkey('name', logcfg)
     filename = getcfgkey('file', logcfg)
@@ -224,10 +225,10 @@ def add_log_reporter(logtype, xmpp, logcfg, maincfg):
 
     xmpp.add_reporter(r)
 
-def add_disk_reporter(xmpp, logcfg):
+def add_disk_reporter(logtype, xmpp, logcfg):
     logreq = ['path', 'warn_mb', 'hysteresis_mb']
     if any(k not in logcfg for k in logreq):
-        raise Exception('[%s] must contain keys: %s' % (s, logreq))
+        raise Exception('[%s] must contain keys: %s' % (logtype, logreq))
 
     path = getcfgkey('path', logcfg)
     warnlevels = getcfgkey('warn_mb', logcfg)
@@ -237,9 +238,22 @@ def add_disk_reporter(xmpp, logcfg):
     r = diskmonitor.DiskMonitor(path, xmpp, warnlevels, hysteresis, 5)
     xmpp.add_reporter(r)
 
-def add_email_alerter(xmpp, logcfg):
-    logreq = ['name', 'conditions', 'delay', 'interval',
-              'smtp', 'email_from', 'email_to', 'email_subject']
+def get_email_alerter(logtype, logcfg):
+    logreq = ['name', 'smtp', 'email_from', 'email_to', 'email_subject']
+    if any(k not in logcfg for k in logreq):
+        raise Exception('[%s] must contain keys: %s' % (logtype, logreq))
+
+    name = getcfgkey('name', logcfg)
+    smtp = getcfgkey('smtp', logcfg)
+    efrom = getcfgkey('email_from', logcfg)
+    eto = getcfgkey('email_to', logcfg)
+    eto = eto.split()
+    esubject = getcfgkey('email_subject', logcfg)
+
+    return aggregator.EmailAlerter(name, smtp, efrom, eto, esubject)
+
+def add_email_alerter(logtype, xmpp, logcfg):
+    logreq = ['name', 'conditions', 'delay', 'interval']
     if any(k not in logcfg for k in logreq):
         raise Exception('[%s] must contain keys: %s' % (s, logreq))
 
@@ -248,16 +262,19 @@ def add_email_alerter(xmpp, logcfg):
     conditions = ast.literal_eval(conditions)
     delay = getcfgkey('delay', logcfg, cast=int)
     interval = getcfgkey('interval', logcfg, cast=int)
-    smtp = getcfgkey('smtp', logcfg)
-    email_from = getcfgkey('email_from', logcfg)
-    email_to = getcfgkey('email_to', logcfg)
-    email_to = email_to.split()
-    email_subject = getcfgkey('email_subject', logcfg)
 
+    e = get_email_alerter(logtype, logcfg)
     r = aggregator.AggregateAlerter(conditions, delay, interval)
-    e = aggregator.EmailAlerter(name, smtp, email_from, email_to, email_subject)
     r.add_alerter(e)
     xmpp.add_aggregator(r)
+
+def test_email_alerter(logcfgs):
+    logtype = 'emailalerts'
+    if logtype in logcfgs:
+        for cfg in logcfgs[logtype]:
+            e = get_email_alerter(logtype, cfg)
+            t = datetime.datetime.now().isoformat()
+            e.alert([('Email alert test', 'test', t)])
 
 
 def main():
@@ -289,6 +306,11 @@ def main():
         logging.info('Shut-down signal received')
         xmpp.close(1)
 
+    if args.emailtest:
+        logging.info("Testing email alerts")
+        test_email_alerter(logcfgs)
+        return
+
     # Connect to the XMPP server and start processing XMPP stanzas.
     if 'server' in maincfg:
         host = maincfg['server']
@@ -317,7 +339,7 @@ def main():
         for logtype in logcfgs.keys():
             for cfg in logcfgs[logtype]:
                 if logtype == 'diskmonitor':
-                    add_disk_reporter(xmpp, cfg)
+                    add_disk_reporter(logtype, xmpp, cfg)
                 elif logtype in logtype_map:
                     add_log_reporter(logtype, xmpp, cfg, maincfg)
                 else:
@@ -325,7 +347,7 @@ def main():
 
             for logtype, cfg in postconfig:
                 if logtype == 'emailalerts':
-                    add_email_alerter(xmpp, cfg)
+                    add_email_alerter(logtype, xmpp, cfg)
                 else:
                     raise Exception(
                         'Invalid configuration section: [%s]', logtype)
