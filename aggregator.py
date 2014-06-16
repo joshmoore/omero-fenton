@@ -50,8 +50,8 @@ class AggregateAlerter(object):
             self.queue.put(m)
             self.last_event = now
             self.new_events = True
-        else:
-            logging.debug('Ignoring log_received: %s', m)
+        #else:
+        #    logging.debug('Ignoring log_received: %s', m)
 
     def get_all(self):
         msgs = []
