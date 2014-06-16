@@ -94,6 +94,7 @@ class AggregateAlerter(object):
                 time.sleep(2)
             last_check = datetime.datetime.utcnow()
 
+
 class EmailAlerter(object):
 
     def __init__(self, name, smtp, fromaddr, toaddrs, subject):
@@ -108,7 +109,7 @@ class EmailAlerter(object):
         headers = '\n'.join(['From: %s' % self.fromaddr,
                              'To: %s' % ', '.join(self.toaddrs),
                              'Subject: %s' % self.subject])
-        preamble = '%s: %d events detected' % (self.name, len(msgs))
+        preamble = 'Alert created: %s' % datetime.datetime.now().isoformat()
         formatted = '\n'.join('%s: %s:\n%s' % m for m in msgs)
 
         email = headers + '\n\n' + preamble + '\n\n' + formatted
@@ -122,9 +123,11 @@ class EmailAlerter(object):
                 s.sendmail(self.fromaddr, self.toaddrs, email)
                 s.quit()
                 return
-            except Exception:
-                logging.error('Failed to send email on attempt %d', a + 1)
+            except Exception as e:
+                logging.error(
+                    'Failed to send email on attempt %d: %s', a + 1, e)
+                if a < self.max_attempts - 1:
+                    time.sleep(10)
 
         logging.error(
             'Failed to send email after %d attempts', self.max_attempts)
-
