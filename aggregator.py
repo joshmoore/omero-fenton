@@ -75,14 +75,14 @@ class AggregateAlerter(object):
             return True
 
     def alert(self):
-        msgs = []
+        pre = None
         if self.n_discarded:
-            msgs.append(('Suppressed', str(self.n_discarded), ''))
+            pre = 'Suppressed events: %d not shown' % self.n_discarded
             self.n_discarded = 0
-        msgs.extend(self.get_all())
+        msgs = self.get_all()
         for r in self.alerters:
             logging.debug('Alerting: %s', r)
-            r.alert(msgs)
+            r.alert(msgs, pre=pre)
 
     def start(self):
         while True:
@@ -109,13 +109,15 @@ class EmailAlerter(object):
         self.subject = subject
         self.max_attempts = 3
 
-    def alert(self, msgs):
+    def alert(self, msgs, pre=None):
         headers = '\n'.join(['From: %s' % self.fromaddr,
                              'To: %s' % ', '.join(self.toaddrs),
                              'Subject: %s' % self.subject])
         preamble = 'Alert created: %s' % time.strftime(
             '%Y-%m-%dT%H:%M:%SZ', time.gmtime())
         formatted = '\n'.join('%s: %s:\n%s' % m for m in msgs)
+        if pre:
+            formatted = pre + '\n\n' + formatted
 
         email = headers + '\n\n' + preamble + '\n\n' + formatted
         self.send(email)
