@@ -23,6 +23,12 @@ def configure():
     # Configuration file
     parser.add_argument('-f', '--config', help='Configuration file',
                         dest='config', required=True)
+
+    # Send a test email to check connection
+    parser.add_argument(
+        '--emailtest', help='Send a test email alert and exit',
+        default=False, action='store_true')
+
     args = parser.parse_args()
 
     config = ConfigParser.SafeConfigParser()
@@ -64,4 +70,3 @@ def getcfgkey(key, *cfgs, **kwargs):
             break
     logging.debug('%s=%s', key, value)
     return value
-

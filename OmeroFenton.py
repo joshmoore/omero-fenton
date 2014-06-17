@@ -4,6 +4,7 @@
 import sys
 import logging
 import argparse
+import ast
 import ConfigParser
 import re
 import string
@@ -14,6 +15,7 @@ from configurator import configure
 from configurator import getcfgkey
 import diskmonitor
 import taillog
+import aggregator
 import signal
 import threading
 
@@ -75,6 +77,7 @@ class OmeroFenton(sleekxmpp.ClientXMPP):
         #                       self.muc_online)
 
         self.reporters = []
+        self.aggregators = []
 
     def get_config_option(self, key):
         try:
@@ -190,13 +193,22 @@ class OmeroFenton(sleekxmpp.ClientXMPP):
         t.start()
 
 
+    def add_aggregator(self, reporter):
+        self.aggregators.append(reporter)
+        for r in self.reporters:
+            if hasattr(r, 'add_sink'):
+                r.add_sink(reporter)
+        t = threading.Thread(target=reporter.start)
+        t.daemon = True
+        t.start()
+
 
 def add_log_reporter(logtype, xmpp, logcfg, maincfg):
     logClass = logtype_map[logtype]
 
     logreq = ['name', 'file']
     if any(k not in logcfg for k in logreq):
-        raise Exception('[%s] must contain keys: %s' % (s, logreq))
+        raise Exception('[%s] must contain keys: %s' % (logtype, logreq))
 
     name = getcfgkey('name', logcfg)
     filename = getcfgkey('file', logcfg)
@@ -212,10 +224,10 @@ def add_log_reporter(logtype, xmpp, logcfg, maincfg):
 
     xmpp.add_reporter(r)
 
-def add_disk_reporter(xmpp, logcfg):
+def add_disk_reporter(logtype, xmpp, logcfg):
     logreq = ['path', 'warn_mb', 'hysteresis_mb']
     if any(k not in logcfg for k in logreq):
-        raise Exception('[%s] must contain keys: %s' % (s, logreq))
+        raise Exception('[%s] must contain keys: %s' % (logtype, logreq))
 
     path = getcfgkey('path', logcfg)
     warnlevels = getcfgkey('warn_mb', logcfg)
@@ -224,6 +236,45 @@ def add_disk_reporter(xmpp, logcfg):
 
     r = diskmonitor.DiskMonitor(path, xmpp, warnlevels, hysteresis, 5)
     xmpp.add_reporter(r)
+
+def get_email_alerter(logtype, logcfg):
+    logreq = ['name', 'smtp', 'email_from', 'email_to', 'email_subject']
+    if any(k not in logcfg for k in logreq):
+        raise Exception('[%s] must contain keys: %s' % (logtype, logreq))
+
+    name = getcfgkey('name', logcfg)
+    smtp = getcfgkey('smtp', logcfg)
+    efrom = getcfgkey('email_from', logcfg)
+    eto = getcfgkey('email_to', logcfg)
+    eto = eto.split()
+    esubject = getcfgkey('email_subject', logcfg)
+
+    return aggregator.EmailAlerter(name, smtp, efrom, eto, esubject)
+
+def add_email_alerter(logtype, xmpp, logcfg):
+    logreq = ['name', 'conditions', 'delay', 'interval']
+    if any(k not in logcfg for k in logreq):
+        raise Exception('[%s] must contain keys: %s' % (s, logreq))
+
+    name = getcfgkey('name', logcfg)
+    conditions = getcfgkey('conditions', logcfg)
+    conditions = ast.literal_eval(conditions)
+    delay = getcfgkey('delay', logcfg, cast=int)
+    interval = getcfgkey('interval', logcfg, cast=int)
+
+    e = get_email_alerter(logtype, logcfg)
+    r = aggregator.AggregateAlerter(conditions, delay, interval)
+    r.add_alerter(e)
+    xmpp.add_aggregator(r)
+
+def test_email_alerter(logcfgs):
+    logtype = 'emailalerts'
+    if logtype in logcfgs:
+        for cfg in logcfgs[logtype]:
+            e = get_email_alerter(logtype, cfg)
+            t = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+            e.alert([('Email alert test', 'test', t)])
+
 
 def main():
     args, maincfg, logcfgs = configure()
@@ -254,6 +305,11 @@ def main():
         logging.info('Shut-down signal received')
         xmpp.close(1)
 
+    if args.emailtest:
+        logging.info("Testing email alerts")
+        test_email_alerter(logcfgs)
+        return
+
     # Connect to the XMPP server and start processing XMPP stanzas.
     if 'server' in maincfg:
         host = maincfg['server']
@@ -277,12 +333,20 @@ def main():
         #     ...
         signal.signal(signal.SIGINT, shutdown_handler)
 
+        postconfig = []
+
         for logtype in logcfgs.keys():
             for cfg in logcfgs[logtype]:
                 if logtype == 'diskmonitor':
-                    add_disk_reporter(xmpp, cfg)
+                    add_disk_reporter(logtype, xmpp, cfg)
                 elif logtype in logtype_map:
                     add_log_reporter(logtype, xmpp, cfg, maincfg)
+                else:
+                    postconfig.append((logtype, cfg))
+
+            for logtype, cfg in postconfig:
+                if logtype == 'emailalerts':
+                    add_email_alerter(logtype, xmpp, cfg)
                 else:
                     raise Exception(
                         'Invalid configuration section: [%s]', logtype)
