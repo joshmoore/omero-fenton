@@ -32,7 +32,7 @@ class PyTail(object):
 
     def tail1(self):
         try:
-            with open(self.filename) as f:
+            with open(self.filename, errors='replace') as f:
                 inode = os.fstat(f.fileno()).st_ino
                 if self.current_inode is None:
                     try:
