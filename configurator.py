@@ -8,6 +8,7 @@ import ConfigParser
 
 maincfgname = 'main'
 
+
 def configure():
     # Setup the command line arguments.
     parser = argparse.ArgumentParser('Omero-Fenton configuration')

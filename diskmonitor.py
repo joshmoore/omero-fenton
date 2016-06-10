@@ -78,5 +78,3 @@ class DiskMonitor(object):
         logging.debug('status: %s', m)
         m = 'Disk space: ' + m
         return m
-
-

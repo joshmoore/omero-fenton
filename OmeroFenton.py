@@ -117,7 +117,7 @@ class OmeroFenton(object):
             try:
                 log = self._log_output.get_nowait()
                 self.slack_call(
-                    'chat.postMessage', channel=self.channel, #text="Log",
+                    'chat.postMessage', channel=self.channel,
                     username=self.botname, attachments=log)
             except Queue.Empty:
                 break

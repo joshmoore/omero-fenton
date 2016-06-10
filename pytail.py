@@ -40,7 +40,8 @@ class PyTail(object):
                     except IOError:
                         # Could be a unix named pipe
                         try:
-                            ispipe = stat.S_ISFIFO(os.fstat(f.fileno()).st_mode)
+                            ispipe = stat.S_ISFIFO(
+                                os.fstat(f.fileno()).st_mode)
                         except:
                             ispipe = False
                         if not ispipe:
@@ -70,12 +71,13 @@ class PyTail(object):
         return self.tail()
 
 
-
 def default_message_cb(msg, match):
     print 'MESSAGE: %s' % msg
 
+
 def default_log_start_f(line):
     return (not line.startswith(' '), None)
+
 
 class LogParser(object):
 
@@ -119,5 +121,3 @@ class LogParser(object):
                 self.current += line
             # Else we must have started in the middle of a message- ignore
             return False
-
-

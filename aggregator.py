@@ -37,7 +37,7 @@ class AggregateAlerter(object):
     def clear_old(self):
         now = time.time()
         if (self.last_event and not self.queue.empty() and
-            (now - self.last_event) > self.interval):
+                (now - self.last_event) > self.interval):
             tmp = self.get_all()
             self.n_discarded += len(tmp)
             logging.info('Discarding %d events', len(tmp))
@@ -51,7 +51,7 @@ class AggregateAlerter(object):
             self.queue.put(m)
             self.last_event = now
             self.new_events = True
-        #else:
+        # else:
         #    logging.debug('Ignoring log_received: %s', m)
 
     def get_all(self):
