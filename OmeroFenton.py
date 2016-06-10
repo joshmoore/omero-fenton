@@ -42,6 +42,9 @@ class OmeroFenton(object):
     OMERO Adverse Reporting of System Events
     """
 
+    # Based on
+    # https://github.com/slackhq/python-rtmbot/blob/master/rtmbot/core.py
+
     def __init__(self, botname, token, channel, config=None):
         self.botname = botname
         self.channel = channel
@@ -56,6 +59,7 @@ class OmeroFenton(object):
         # self.slack_call('api.test')
         self.slack_client.rtm_connect()
 
+        self.last_ping = 0
         self._alive = True
 
     def slack_call(self, *args, **kwargs):
@@ -68,8 +72,15 @@ class OmeroFenton(object):
             for msg in self.slack_client.rtm_read():
                 self.message(msg)
             self.output_logs()
+            self.autoping()
+            time.sleep(0.2)
+
+    def autoping(self):
+        # hardcode the interval to 3 seconds
+        now = int(time.time())
+        if now > self.last_ping + 3:
             self.slack_client.server.ping()
-            time.sleep(3)
+            self.last_ping = now
 
     def close(self, ret=None):
         if self._alive:
@@ -80,7 +91,7 @@ class OmeroFenton(object):
             sys.exit(ret)
 
     def message(self, data):
-        logging.info('Received message %s', data)
+        logging.debug('Received message %s', data)
         if data.get("type") == "message" and data.get("user"):
             # This is a real user, not a bot
             text = data.get("text")
@@ -113,14 +124,13 @@ class OmeroFenton(object):
         self._log_output.put(json.dumps([att]))
 
     def output_logs(self):
-        while True:
-            try:
-                log = self._log_output.get_nowait()
-                self.slack_call(
-                    'chat.postMessage', channel=self.channel,
-                    username=self.botname, attachments=log)
-            except Queue.Empty:
-                break
+        try:
+            log = self._log_output.get_nowait()
+            self.slack_call(
+                'chat.postMessage', channel=self.channel,
+                username=self.botname, attachments=log)
+        except Queue.Empty:
+            pass
 
     def status(self, body):
         logging.debug(body)
@@ -232,7 +242,7 @@ def main():
 
     # Setup logging.
     logging.basicConfig(level=args.loglevel,
-                        format='%(levelname)-8s %(message)s')
+                        format='%(asctime)-15s %(levelname)-8s %(message)s')
     logging.debug(args)
     logging.debug(maincfg)
     logging.debug(logcfgs)
