@@ -4,22 +4,20 @@ omero-fenton
 OMERO error logs reporting system
 ---------------------------------
 
-This is a jabber bot for monitoring OMERO log files.
+This is a Slack bot for monitoring OMERO log files.
 
 Installation
 ------------
 
-Python module requirements, install these system wide, or into a Virtualenv:
+Requires Python 2.7+. Install the following Python module requirements, either system wide, or into a Virtualenv:
 
-* argparse
-* sleekxmpp
+    pip install -r requirements.txt
 
 Clone this repository:
 
-```
-git clone https://github.com/manics/omero-fenton.git
-cd omero-fenton
-```
+    git clone https://github.com/manics/omero-fenton.git
+    cd omero-fenton
+
 
 Create the configuration file by copying `example.cfg` and editting.
 

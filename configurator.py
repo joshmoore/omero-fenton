@@ -36,7 +36,7 @@ def configure():
     if not config.read(args.config):
         raise Exception('Invalid configuration file: %s' % args.config)
 
-    mainreq = ['jid', 'password', 'room', 'nick', 'levels']
+    mainreq = ['botname', 'token', 'channel', 'levels']
     maincfg = dict(config.items(maincfgname))
     if any(k not in maincfg for k in mainreq):
         raise Exception('[%s] must contain keys: %s' % (maincfgname, mainreq))

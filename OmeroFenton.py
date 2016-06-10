@@ -3,12 +3,12 @@
 
 import sys
 import logging
-import argparse
 import ast
-import ConfigParser
+import json
+import Queue
 import re
 import string
-import sleekxmpp
+from slackclient import SlackClient
 import time
 
 from configurator import configure
@@ -22,8 +22,7 @@ import threading
 
 # Python versions before 3.0 do not use UTF-8 encoding
 # by default. To ensure that Unicode is handled properly
-# throughout SleekXMPP, we will set the default encoding
-# ourselves to UTF-8.
+# throughout set the default encoding to UTF-8.
 if sys.version_info < (3, 0):
     reload(sys)
     sys.setdefaultencoding('utf8')
@@ -38,146 +37,96 @@ logtype_map = {
     }
 
 
-
-class OmeroFenton(sleekxmpp.ClientXMPP):
+class OmeroFenton(object):
     """
     OMERO Adverse Reporting of System Events
     """
 
-    def __init__(self, jid, password, room, nick, config=None):
-        sleekxmpp.ClientXMPP.__init__(self, jid, password)
-
-        self.room = room
-        self.nick = nick
-
+    def __init__(self, botname, token, channel, config=None):
+        self.botname = botname
+        self.channel = channel
         self.config = config
 
         self.started = time.strftime('%Y-%m-%d %H:%M:%S %Z')
-
-        # The session_start event will be triggered when
-        # the bot establishes its connection with the server
-        # and the XML streams are ready for use. We want to
-        # listen for this event so that we we can initialize
-        # our roster.
-        self.add_event_handler("session_start", self.start)
-
-        # The groupchat_message event is triggered whenever a message
-        # stanza is received from any chat room. If you also also
-        # register a handler for the 'message' event, MUC messages
-        # will be processed by both handlers.
-        self.add_event_handler("groupchat_message", self.muc_message)
-        self.add_event_handler("message", self.message)
-
-        # The groupchat_presence event is triggered whenever a
-        # presence stanza is received from any chat room, including
-        # any presences you send yourself. To limit event handling
-        # to a single room, use the events muc::room@server::presence,
-        # muc::room@server::got_online, or muc::room@server::got_offline.
-        #self.add_event_handler("muc::%s::got_online" % self.room,
-        #                       self.muc_online)
-
         self.reporters = []
         self.aggregators = []
+        self._log_output = Queue.Queue()
 
-    def get_config_option(self, key):
-        try:
-            val = self.config.get('mmmbot', key)
-        except Exception as e:
-            logging.error('get_config_option: %s' % e)
-            val = None
-        return val
+        self.slack_client = SlackClient(token)
+        # self.slack_call('api.test')
+        self.slack_client.rtm_connect()
 
-    def start(self, event):
-        """
-        Process the session_start event.
+        self._alive = True
 
-        Typical actions for the session_start event are
-        requesting the roster and broadcasting an initial
-        presence stanza.
+    def slack_call(self, *args, **kwargs):
+        r = self.slack_client.api_call(*args, **kwargs)
+        if not r['ok']:
+            raise Exception(str(r))
 
-        Arguments:
-            event -- An empty dictionary. The session_start
-                     event does not provide any additional
-                     data.
-        """
-        self.get_roster()
-        self.send_presence()
-        self.plugin['xep_0045'].joinMUC(self.room,
-                                        self.nick,
-                                        # If a room password is needed, use:
-                                        # password=the_room_password,
-                                        wait=True)
-
-        # If this is a new room it needs to be configured before anyone else can join.
-        # Not sure how you're meant to do that though.
-        # https://github.com/chatmongers/chatmongers-web-demos/blob/master/muc_event_subscription/mucsetup.py
-        # https://github.com/skinkie/SleekXMPP--XEP-0080-/blob/master/sleekxmpp/plugins/xep_0045.py
-        try:
-            self.plugin['xep_0045'].configureRoom(self.room)
-        except Exception as e:
-            logging.error('xep_0045.configureRoom: %s', e)
+    def start(self):
+        while self._alive:
+            for msg in self.slack_client.rtm_read():
+                self.message(msg)
+            self.output_logs()
+            self.slack_client.server.ping()
+            time.sleep(3)
 
     def close(self, ret=None):
-        try:
-            logging.debug('Calling abort()')
-            self.abort()
-        except Exception as e:
-            logging.error(e)
-
-        if ret is not None:
-            logging.debug('Calling sys.exit(%d)' % ret)
+        if self._alive:
+            # Graceful exit
+            self._alive = False
+        else:
+            logging.error('Calling sys.exit(%d)' % ret)
             sys.exit(ret)
 
-
-    def muc_message(self, msg):
-        """
-        Process incoming message stanzas from any chat room. Be aware
-        that if you also have any handlers for the 'message' event,
-        message stanzas may be processed by both handlers, so check
-        the 'type' attribute when using a 'message' event handler.
-        """
-
-        # We're in unicode mode, assume all strings are unicode
-        mucnick = str(msg['mucnick'])
-        body = str(msg['body'])
-        if mucnick != self.nick and mucnick.find('-bot') < 0:
-            funcs = [self.status]
-            for f in funcs:
-                reply = f(body, mucnick)
-                if reply:
-                    logging.info('Replying: %s', reply)
-                    self.send_message(mto=msg['from'].bare,
-                                      mbody=reply,
-                                      mtype='groupchat')
-                    return
-
-
-    def message(self, msg):
-        if msg['type'] in ('chat', 'normal'):
-            logging.info('Received direct message:%s from:%s body:%s' % (
-                    msg, msg['from'].bare, msg['body']))
-
-        if msg['body'] == 'shut-up ' + self.nick:
-            admins = self.get_config_option('botadmins')
-            if admins:
-                if msg['from'].bare in admins.split():
-                    logging.info('Admin message received')
-                    self.close(0)
-
+    def message(self, data):
+        logging.info('Received message %s', data)
+        if data.get("type") == "message" and data.get("user"):
+            # This is a real user, not a bot
+            text = data.get("text")
+            channel = data.get("channel")
+            if text and channel:
+                funcs = [self.status]
+                for f in funcs:
+                    reply = f(text)
+                    if reply:
+                        slack_channel = self.slack_client.server.channels.find(
+                            channel)
+                        logging.info('Replying: %s', reply)
+                        slack_channel.send_message(reply)
 
     def log_message(self, logmsg):
-        logging.info('Sending: %s', logmsg)
-        self.send_message(mto=self.room, mbody=logmsg, mtype='groupchat')
+        logging.info('Queuing: %s', logmsg)
+        att = {
+            "fallback": "Log monitor alert",
+            "color": "#ff0000",
+            # "pretext": "Pretext text",
+            "title": "Log monitor alert",
+            # "title_link": "https://api.slack.com/docs/attachments",
+            # "fields": [{
+            #     "title":"key", "value":"value"
+            #     }],
+            "ts": time.time(),
+            "mrkdwn_in": ["text"],
+            "text": "```\n%s\n```" % logmsg,
+            }
+        self._log_output.put(json.dumps([att]))
 
-    #def send_message(self, mto, mbody, mtype):
-    #    print mto, mtype, mbody
+    def output_logs(self):
+        while True:
+            try:
+                log = self._log_output.get_nowait()
+                self.slack_call(
+                    'chat.postMessage', channel=self.channel, #text="Log",
+                    username=self.botname, attachments=log)
+            except Queue.Empty:
+                break
 
-
-    def status(self, body, nick):
+    def status(self, body):
         logging.debug(body)
         reply = None
         repunc = re.escape(string.punctuation)
-        pattern = '(^|[%s\s])%s([%s\s]|$)' % (repunc, self.nick, repunc)
+        pattern = '(^|[%s\s])@?%s([%s\s]|$)' % (repunc, self.botname, repunc)
         if re.search(pattern, body, re.IGNORECASE):
             reply = 'OMERO Adverse Reporting of System Errors\n\n'
             reply += 'Monitoring started: %s\n' % self.started
@@ -185,13 +134,11 @@ class OmeroFenton(sleekxmpp.ClientXMPP):
                 reply += r.status() + '\n'
         return reply
 
-
     def add_reporter(self, reporter):
         self.reporters.append(reporter)
         t = threading.Thread(target=reporter.start)
         t.daemon = True
         t.start()
-
 
     def add_aggregator(self, reporter):
         self.aggregators.append(reporter)
@@ -203,7 +150,7 @@ class OmeroFenton(sleekxmpp.ClientXMPP):
         t.start()
 
 
-def add_log_reporter(logtype, xmpp, logcfg, maincfg):
+def add_log_reporter(logtype, bot, logcfg, maincfg):
     logClass = logtype_map[logtype]
 
     logreq = ['name', 'file']
@@ -217,14 +164,15 @@ def add_log_reporter(logtype, xmpp, logcfg, maincfg):
     limitn = getcfgkey('rate_limit_n', logcfg, maincfg, cast=int)
     limitt = getcfgkey('rate_limit_t', logcfg, maincfg, cast=float)
 
-    r = logClass(filename, name, xmpp, levels, limitn, limitt)
+    r = logClass(filename, name, bot, levels, limitn, limitt)
     loglen = getcfgkey('max_log_length', logcfg, maincfg, cast=int)
     if loglen:
         r.max_log_length = loglen
 
-    xmpp.add_reporter(r)
+    bot.add_reporter(r)
 
-def add_disk_reporter(logtype, xmpp, logcfg):
+
+def add_disk_reporter(logtype, bot, logcfg):
     logreq = ['path', 'warn_mb', 'hysteresis_mb']
     if any(k not in logcfg for k in logreq):
         raise Exception('[%s] must contain keys: %s' % (logtype, logreq))
@@ -234,8 +182,9 @@ def add_disk_reporter(logtype, xmpp, logcfg):
     warnlevels = [int(w) for w in warnlevels.split(',')]
     hysteresis = getcfgkey('hysteresis_mb', logcfg, cast=int)
 
-    r = diskmonitor.DiskMonitor(path, xmpp, warnlevels, hysteresis, 5)
-    xmpp.add_reporter(r)
+    r = diskmonitor.DiskMonitor(path, bot, warnlevels, hysteresis, 5)
+    bot.add_reporter(r)
+
 
 def get_email_alerter(logtype, logcfg):
     logreq = ['name', 'smtp', 'email_from', 'email_to', 'email_subject']
@@ -251,12 +200,13 @@ def get_email_alerter(logtype, logcfg):
 
     return aggregator.EmailAlerter(name, smtp, efrom, eto, esubject)
 
-def add_email_alerter(logtype, xmpp, logcfg):
+
+def add_email_alerter(logtype, bot, logcfg):
     logreq = ['name', 'conditions', 'delay', 'interval']
     if any(k not in logcfg for k in logreq):
-        raise Exception('[%s] must contain keys: %s' % (s, logreq))
+        raise Exception('[%s] must contain keys: %s' % (logtype, logreq))
 
-    name = getcfgkey('name', logcfg)
+    # name = getcfgkey('name', logcfg)
     conditions = getcfgkey('conditions', logcfg)
     conditions = ast.literal_eval(conditions)
     delay = getcfgkey('delay', logcfg, cast=int)
@@ -265,7 +215,8 @@ def add_email_alerter(logtype, xmpp, logcfg):
     e = get_email_alerter(logtype, logcfg)
     r = aggregator.AggregateAlerter(conditions, delay, interval)
     r.add_alerter(e)
-    xmpp.add_aggregator(r)
+    bot.add_aggregator(r)
+
 
 def test_email_alerter(logcfgs):
     logtype = 'emailalerts'
@@ -286,74 +237,39 @@ def main():
     logging.debug(maincfg)
     logging.debug(logcfgs)
 
-    # Setup the MUCBot and register plugins. Note that while plugins may
-    # have interdependencies, the order in which you register them does
-    # not matter.
-    xmpp = OmeroFenton(maincfg['jid'], maincfg['password'],
-                       maincfg['room'], maincfg['nick'])
-
-    # This may or may not be needed for ['xep_0045'].configureRoom
-    xmpp.register_plugin('xep_0004') # Data Forms
-
-    xmpp.register_plugin('xep_0030') # Service Discovery
-    xmpp.register_plugin('xep_0045') # Multi-User Chat
-    # XMPP Ping (hopefully this will reconnect when the server goes down)
-    xmpp.register_plugin('xep_0199', {'keepalive': True, 'frequency': 60})
-
+    # Setup the bot and register plugins
+    bot = OmeroFenton(maincfg['botname'], maincfg['token'], maincfg['channel'])
 
     def shutdown_handler(signal=None, frame=None):
         logging.info('Shut-down signal received')
-        xmpp.close(1)
+        bot.close(1)
 
     if args.emailtest:
         logging.info("Testing email alerts")
         test_email_alerter(logcfgs)
         return
 
-    # Connect to the XMPP server and start processing XMPP stanzas.
-    if 'server' in maincfg:
-        host = maincfg['server']
-        try:
-            host, port = host.rsplit(':', 1)
-            port = int(port)
-        except ValueError:
-            port = 5222
-        r = xmpp.connect((host, port))
-    else:
-        r = xmpp.connect()
+    signal.signal(signal.SIGINT, shutdown_handler)
 
+    postconfig = []
 
-    if r:
-        # If you do not have the dnspython library installed, you will need
-        # to manually specify the name of the server if it does not match
-        # the one in the JID. For example, to use Google Talk you would
-        # need to use:
-        #
-        # if xmpp.connect(('talk.google.com', 5222)):
-        #     ...
-        signal.signal(signal.SIGINT, shutdown_handler)
+    for logtype in logcfgs.keys():
+        for cfg in logcfgs[logtype]:
+            if logtype == 'diskmonitor':
+                add_disk_reporter(logtype, bot, cfg)
+            elif logtype in logtype_map:
+                add_log_reporter(logtype, bot, cfg, maincfg)
+            else:
+                postconfig.append((logtype, cfg))
 
-        postconfig = []
+        for logtype, cfg in postconfig:
+            if logtype == 'emailalerts':
+                add_email_alerter(logtype, bot, cfg)
+            else:
+                raise Exception(
+                    'Invalid configuration section: [%s]', logtype)
 
-        for logtype in logcfgs.keys():
-            for cfg in logcfgs[logtype]:
-                if logtype == 'diskmonitor':
-                    add_disk_reporter(logtype, xmpp, cfg)
-                elif logtype in logtype_map:
-                    add_log_reporter(logtype, xmpp, cfg, maincfg)
-                else:
-                    postconfig.append((logtype, cfg))
-
-            for logtype, cfg in postconfig:
-                if logtype == 'emailalerts':
-                    add_email_alerter(logtype, xmpp, cfg)
-                else:
-                    raise Exception(
-                        'Invalid configuration section: [%s]', logtype)
-
-        xmpp.process(block=True)
-        #xmpp.process(block=False)
-
+        bot.start()
         logging.info("Done")
     else:
         logging.error("Unable to connect.")
