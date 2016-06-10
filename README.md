@@ -21,10 +21,12 @@ Clone this repository:
 
 Create the configuration file by copying `example.cfg` and editting.
 
-* Enter the Jabber connection details: Jabber ID, password, nickname, conference room.
+* Create a bot-user and token from https://my.slack.com/services/new/bot
+* Enter the Slack connection details: bot-user, Slack token, channel (including `#`).
 * Each log file has its own configuration section, section headings should be changed and will be printed alongside log messages.
 * `file` should be the path to a log file, for convenience you can just symlink the OMERO logs directory into the current directory.
 * Rate limits are applied per file.
+* If you want to interact with the bot you must invite the bot-user to the channel, otherwise you will only receive notifications.
 
 Run the bot from the current directory:
 
