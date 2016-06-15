@@ -68,10 +68,10 @@ class LogReporter(object):
 
     def status(self):
         m = '%s:    %s' % (
-            self.name, '  '.join('%s: %d' % c for c in self.counts.iteritems()))
+            self.name, '  '.join(
+                '%s: %d' % c for c in self.counts.iteritems()))
         logging.debug('status: %s', m)
         return m
-
 
 
 class LimitLogReporter(LogReporter):
@@ -130,7 +130,6 @@ class LimitLogReporter(LogReporter):
             self.output(now, msg)
 
 
-
 class LimitLogAllReporter(LimitLogReporter):
 
     def __init__(self, file, name, rep, levels, limitn, limitt):
@@ -150,7 +149,6 @@ class LimitLogAllReporter(LimitLogReporter):
             self.level_wildcard, self.name, self.truncate_msg(msg))
         self.log_or_limit(m)
         self.sink(self.level_wildcard, self.name, msg)
-
 
 
 class LimitLogDateLevelReporter(LimitLogReporter):
@@ -175,4 +173,3 @@ class LimitLogDateLevelReporter(LimitLogReporter):
             m = '%s: %s:\n%s' % (level, self.name, self.truncate_msg(msg))
             self.log_or_limit(m)
             self.sink(level, self.name, msg)
-
