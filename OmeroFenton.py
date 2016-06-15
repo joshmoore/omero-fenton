@@ -272,17 +272,15 @@ def main():
             else:
                 postconfig.append((logtype, cfg))
 
-        for logtype, cfg in postconfig:
-            if logtype == 'emailalerts':
-                add_email_alerter(logtype, bot, cfg)
-            else:
-                raise Exception(
-                    'Invalid configuration section: [%s]', logtype)
+    for logtype, cfg in postconfig:
+        if logtype == 'emailalerts':
+            add_email_alerter(logtype, bot, cfg)
+        else:
+            raise Exception(
+                'Invalid configuration section: [%s]', logtype)
 
-        bot.start()
-        logging.info("Done")
-    else:
-        logging.error("Unable to connect.")
+    bot.start()
+    logging.info("Done")
 
 
 if __name__ == '__main__':
