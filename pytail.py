@@ -18,6 +18,7 @@ class PyTail(object):
         self.block = block
         self.count = 0
         self.current_inode = None
+        self.exists = False
 
     def read_to_end(self, f):
         for line in f:
@@ -33,6 +34,7 @@ class PyTail(object):
     def tail1(self):
         try:
             with open(self.filename, errors='replace') as f:
+                self.exists = True
                 inode = os.fstat(f.fileno()).st_ino
                 if self.current_inode is None:
                     try:
@@ -58,6 +60,7 @@ class PyTail(object):
                         break
                     time.sleep(self.pollint)
         except (IOError, OSError) as e:
+            self.exists = False
             if e.errno != errno.ENOENT:
                 raise
 
@@ -90,6 +93,9 @@ class LogParser(object):
         self.next = None
         self.current_match = None
         self.next_match = None
+
+    def exists(self):
+        return self.tail.exists
 
     def parse(self):
         self.current = self.next

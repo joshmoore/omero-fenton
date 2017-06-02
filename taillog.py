@@ -20,6 +20,8 @@ class LogReporter(object):
         self.max_log_length = 1024
         self.counts = dict.fromkeys(self.levels, 0)
 
+        self.log = None
+
     def add_sink(self, sink):
         logging.debug('Adding sink: %s', sink)
         self.sinks.append(sink)
@@ -54,12 +56,12 @@ class LogReporter(object):
     def taillog(self):
         pollint = 2
         block = False
-        log = pytail.LogParser(self.file, self.log_received, self.is_log_start,
-                               pollint, block)
+        self.log = pytail.LogParser(
+            self.file, self.log_received, self.is_log_start, pollint, block)
 
         while True:
             try:
-                log.parse()
+                self.log.parse()
             except Exception as e:
                 self.parse_error(repr(e))
 
@@ -67,9 +69,12 @@ class LogReporter(object):
         self.taillog()
 
     def status(self):
-        m = '%s:    %s' % (
-            self.name, '  '.join(
-                '%s: %d' % c for c in self.counts.iteritems()))
+        if self.log and self.log.exists():
+            counts = '  '.join(
+                '%s: %d' % c for c in self.counts.iteritems())
+        else:
+            counts = '  FILE NOT FOUND'
+        m = '%s:    %s' % (self.name, counts)
         logging.debug('status: %s', m)
         return m
 
