@@ -68,6 +68,7 @@ class OmeroFenton(object):
             raise Exception(str(r))
 
     def start(self):
+        self.send_message(text=self.status_message())
         while self._alive:
             for msg in self.slack_client.rtm_read():
                 self.message(msg)
@@ -139,15 +140,17 @@ class OmeroFenton(object):
 
     def status(self, body):
         logging.debug(body)
-        reply = None
         repunc = re.escape(string.punctuation)
         pattern = '(^|[%s\s])@?%s([%s\s]|$)' % (repunc, self.botname, repunc)
         if re.search(pattern, body, re.IGNORECASE):
-            reply = 'OMERO Adverse Reporting of System Errors\n\n'
-            reply += 'Monitoring started: %s\n' % self.started
-            for r in self.reporters:
-                reply += r.status() + '\n'
-        return reply
+            return self.status_message()
+
+    def status_message(self):
+        m = 'OMERO Adverse Reporting of System Errors\n\n'
+        m += 'Monitoring started: %s\n' % self.started
+        for r in self.reporters:
+            m += r.status() + '\n'
+        return m
 
     def add_reporter(self, reporter):
         self.reporters.append(reporter)
