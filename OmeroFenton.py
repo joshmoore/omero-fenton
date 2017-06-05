@@ -101,10 +101,17 @@ class OmeroFenton(object):
                 for f in funcs:
                     reply = f(text)
                     if reply:
-                        slack_channel = self.slack_client.server.channels.find(
-                            channel)
-                        logging.info('Replying: %s', reply)
-                        slack_channel.send_message(reply)
+                        self.send_message(text=reply, channel=channel)
+
+    def send_message(self, attachments=None, text=None, channel=None):
+        kwargs = dict(username=self.botname)
+        kwargs['channel'] = channel if channel else self.channel
+        if attachments:
+            kwargs['attachments'] = attachments
+        if text:
+            kwargs['text'] = text
+        logging.info('Sending message: %s', kwargs)
+        self.slack_call('chat.postMessage', **kwargs)
 
     def log_message(self, logmsg):
         logging.info('Queuing: %s', logmsg)
@@ -126,9 +133,7 @@ class OmeroFenton(object):
     def output_logs(self):
         try:
             log = self._log_output.get_nowait()
-            self.slack_call(
-                'chat.postMessage', channel=self.channel,
-                username=self.botname, attachments=log)
+            self.send_message(attachments=log)
         except Queue.Empty:
             pass
 
