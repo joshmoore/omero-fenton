@@ -56,8 +56,14 @@ class OmeroFenton(object):
         self._log_output = Queue.Queue()
 
         self.slack_client = SlackClient(token)
-        # self.slack_call('api.test')
-        self.slack_client.rtm_connect()
+        self.slack_call('api.test')
+        logging.debug('api.test suceeded')
+        self.rtm_connected = self.slack_client.rtm_connect()
+        if not self.rtm_connected:
+            # api.test succeeded so we can still send messages
+            logging.error(
+                'Real-time messaging disable, rtm_connect failed: %s',
+                self.rtm_connected)
 
         self.last_ping = 0
         self._alive = True
@@ -69,10 +75,11 @@ class OmeroFenton(object):
 
     def start(self):
         while self._alive:
-            for msg in self.slack_client.rtm_read():
-                self.message(msg)
+            if self.rtm_connected:
+                for msg in self.slack_client.rtm_read():
+                    self.message(msg)
+                self.autoping()
             self.output_logs()
-            self.autoping()
             time.sleep(0.2)
 
     def autoping(self):
