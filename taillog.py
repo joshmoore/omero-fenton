@@ -14,9 +14,9 @@ class LogReporter(object):
 
         self.sinks = []
 
-        self.log_re = re.compile('^(?P<date>\d\d\d\d-\d\d-\d\d) '
-                                 '(?P<time>\d\d:\d\d:\d\d,\d\d\d) '
-                                 '(?P<level>\w+) ')
+        self.log_re = re.compile(r'^(?P<date>\d\d\d\d-\d\d-\d\d) '
+                                 r'(?P<time>\d\d:\d\d:\d\d,\d\d\d) '
+                                 r'(?P<level>\w+) ')
         self.max_log_length = 1024
         self.counts = dict.fromkeys(self.levels, 0)
 
@@ -139,7 +139,7 @@ class LimitLogAllReporter(LimitLogReporter):
         self.level_wildcard = '*'
         self.counts[self.level_wildcard] = 0
         # Override the log start regexp, logs all levels
-        self.log_re = re.compile('^\S')
+        self.log_re = re.compile(r'^\S')
         logging.debug('log_re:%s', self.log_re.pattern)
 
     def log_received(self, msg, match):
@@ -156,8 +156,8 @@ class LimitLogDateLevelReporter(LimitLogReporter):
     def __init__(self, file, name, rep, levels, limitn, limitt):
         super(LimitLogDateLevelReporter, self).__init__(
             file, name, rep, levels, limitn, limitt)
-        self.log_re = re.compile('^(?P<date>[A-Z][a-z][a-z] \d\d, \d\d\d\d) '
-                                 '(?P<time>\d?\d:\d\d:\d\d [A-Z][A-Z]) ')
+        self.log_re = re.compile(r'^(?P<date>[A-Z][a-z][a-z] \d\d, \d\d\d\d) '
+                                 r'(?P<time>\d?\d:\d\d:\d\d [A-Z][A-Z]) ')
         self.loglevel_re = re.compile('^(?P<level>[A-Z]+): ')
 
     def log_received(self, msg, match):
@@ -166,7 +166,7 @@ class LimitLogDateLevelReporter(LimitLogReporter):
         try:
             lm = self.loglevel_re.match(msg.splitlines()[1])
             level = lm.groupdict()['level']
-        except:
+        except Exception:
             level = None
         if level in self.levels:
             self.counts[level] += 1

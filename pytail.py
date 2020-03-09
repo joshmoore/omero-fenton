@@ -42,7 +42,7 @@ class PyTail(object):
                         try:
                             ispipe = stat.S_ISFIFO(
                                 os.fstat(f.fileno()).st_mode)
-                        except:
+                        except Exception:
                             ispipe = False
                         if not ispipe:
                             raise
@@ -92,13 +92,13 @@ class LogParser(object):
         self.next_match = None
 
     def parse(self):
-        self.current = self.__next__
+        self.current = self.next
         self.next = None
 
         for line in self.tail:
             if self.got_line(line):
                 self.message_cb(self.current, self.current_match)
-                self.current = self.__next__
+                self.current = self.next
                 self.current_match = self.next_match
                 self.next = None
 
