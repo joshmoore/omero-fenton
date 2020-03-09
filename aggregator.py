@@ -1,5 +1,5 @@
 import logging
-import Queue
+import queue
 import re
 import smtplib
 import time
@@ -22,7 +22,7 @@ class AggregateAlerter(object):
         self.delay = delay
         self.interval = interval
 
-        self.queue = Queue.Queue()
+        self.queue = queue.Queue()
         self.alerters = []
         self.last_event = None
         self.new_events = False
@@ -59,7 +59,7 @@ class AggregateAlerter(object):
         try:
             while True:
                 msgs.append(self.queue.get(block=False))
-        except Queue.Empty:
+        except queue.Empty:
             pass
         self.new_events = False
         return msgs
@@ -123,7 +123,7 @@ class EmailAlerter(object):
         self.send(email)
 
     def send(self, email):
-        for a in xrange(self.max_attempts):
+        for a in range(self.max_attempts):
             try:
                 s = smtplib.SMTP(self.smtp)
                 logging.debug('Sending email to %s', self.toaddrs)

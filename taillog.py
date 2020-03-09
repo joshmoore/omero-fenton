@@ -69,7 +69,7 @@ class LogReporter(object):
     def status(self):
         m = '%s:    %s' % (
             self.name, '  '.join(
-                '%s: %d' % c for c in self.counts.iteritems()))
+                '%s: %d' % c for c in self.counts.items()))
         logging.debug('status: %s', m)
         return m
 

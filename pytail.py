@@ -72,7 +72,7 @@ class PyTail(object):
 
 
 def default_message_cb(msg, match):
-    print 'MESSAGE: %s' % msg
+    print('MESSAGE: %s' % msg)
 
 
 def default_log_start_f(line):
@@ -92,13 +92,13 @@ class LogParser(object):
         self.next_match = None
 
     def parse(self):
-        self.current = self.next
+        self.current = self.__next__
         self.next = None
 
         for line in self.tail:
             if self.got_line(line):
                 self.message_cb(self.current, self.current_match)
-                self.current = self.next
+                self.current = self.__next__
                 self.current_match = self.next_match
                 self.next = None
 

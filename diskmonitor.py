@@ -31,14 +31,14 @@ class DiskMonitor(object):
         free_mb, total_mb = self.get_disk_space()
 
         newstate = self.state
-        for n in xrange(len(self.warnlevels) - 1, -1, -1):
+        for n in range(len(self.warnlevels) - 1, -1, -1):
             wl = self.warnlevels[n]
             if free_mb <= wl:
                 logging.debug('free_mb <= warn[%d] (%d)', n, wl)
                 newstate = max(newstate, n + 1)
                 break
 
-        for n in xrange(0, len(self.warnlevels)):
+        for n in range(0, len(self.warnlevels)):
             wl = self.warnlevels[n] + self.hysteresis
             if free_mb > wl:
                 logging.debug('free_mb > warn[%d] + hysteresis (%d)', n, wl)

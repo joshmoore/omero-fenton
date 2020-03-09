@@ -5,7 +5,7 @@ import sys
 import logging
 import ast
 import json
-import Queue
+import queue
 import re
 import string
 from slackclient import SlackClient
@@ -18,13 +18,14 @@ import taillog
 import aggregator
 import signal
 import threading
+import imp
 
 
 # Python versions before 3.0 do not use UTF-8 encoding
 # by default. To ensure that Unicode is handled properly
 # throughout set the default encoding to UTF-8.
 if sys.version_info < (3, 0):
-    reload(sys)
+    imp.reload(sys)
     sys.setdefaultencoding('utf8')
 else:
     raw_input = input
@@ -53,7 +54,7 @@ class OmeroFenton(object):
         self.started = time.strftime('%Y-%m-%d %H:%M:%S %Z')
         self.reporters = []
         self.aggregators = []
-        self._log_output = Queue.Queue()
+        self._log_output = queue.Queue()
 
         self.slack_client = SlackClient(token)
         self.slack_call('api.test')
@@ -136,7 +137,7 @@ class OmeroFenton(object):
             self.slack_call(
                 'chat.postMessage', channel=self.channel,
                 username=self.botname, attachments=log)
-        except Queue.Empty:
+        except queue.Empty:
             pass
 
     def status(self, body):
@@ -270,7 +271,7 @@ def main():
 
     postconfig = []
 
-    for logtype in logcfgs.keys():
+    for logtype in list(logcfgs.keys()):
         for cfg in logcfgs[logtype]:
             if logtype == 'diskmonitor':
                 add_disk_reporter(logtype, bot, cfg)

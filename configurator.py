@@ -3,7 +3,7 @@
 
 import logging
 import argparse
-import ConfigParser
+import configparser
 
 
 maincfgname = 'main'
@@ -32,7 +32,7 @@ def configure():
 
     args = parser.parse_args()
 
-    config = ConfigParser.SafeConfigParser()
+    config = configparser.SafeConfigParser()
     config.optionxform = str
     if not config.read(args.config):
         raise Exception('Invalid configuration file: %s' % args.config)
