@@ -5,7 +5,7 @@ import sys
 import logging
 import ast
 import json
-import Queue
+import queue
 import re
 import string
 from slackclient import SlackClient
@@ -18,16 +18,6 @@ import taillog
 import aggregator
 import signal
 import threading
-
-
-# Python versions before 3.0 do not use UTF-8 encoding
-# by default. To ensure that Unicode is handled properly
-# throughout set the default encoding to UTF-8.
-if sys.version_info < (3, 0):
-    reload(sys)
-    sys.setdefaultencoding('utf8')
-else:
-    raw_input = input
 
 
 logtype_map = {
@@ -53,7 +43,7 @@ class OmeroFenton(object):
         self.started = time.strftime('%Y-%m-%d %H:%M:%S %Z')
         self.reporters = []
         self.aggregators = []
-        self._log_output = Queue.Queue()
+        self._log_output = queue.Queue()
 
         self.slack_client = SlackClient(token)
         self.slack_call('api.test')
@@ -136,14 +126,14 @@ class OmeroFenton(object):
             self.slack_call(
                 'chat.postMessage', channel=self.channel,
                 username=self.botname, attachments=log)
-        except Queue.Empty:
+        except queue.Empty:
             pass
 
     def status(self, body):
         logging.debug(body)
         reply = None
         repunc = re.escape(string.punctuation)
-        pattern = '(^|[%s\s])@?%s([%s\s]|$)' % (repunc, self.botname, repunc)
+        pattern = r'(^|[%s\s])@?%s([%s\s]|$)' % (repunc, self.botname, repunc)
         if re.search(pattern, body, re.IGNORECASE):
             reply = 'OMERO Adverse Reporting of System Errors\n\n'
             reply += 'Monitoring started: %s\n' % self.started

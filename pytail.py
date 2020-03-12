@@ -42,7 +42,7 @@ class PyTail(object):
                         try:
                             ispipe = stat.S_ISFIFO(
                                 os.fstat(f.fileno()).st_mode)
-                        except:
+                        except Exception:
                             ispipe = False
                         if not ispipe:
                             raise
@@ -72,7 +72,7 @@ class PyTail(object):
 
 
 def default_message_cb(msg, match):
-    print 'MESSAGE: %s' % msg
+    print('MESSAGE: %s' % msg)
 
 
 def default_log_start_f(line):

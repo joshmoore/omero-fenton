@@ -1,1 +1,3 @@
-slackclient
+# Version 2 contains breaking changes
+# https://github.com/slackapi/python-slackclient/wiki/Migrating-to-2.x
+slackclient>=1.3.2,<2

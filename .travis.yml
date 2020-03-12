@@ -1,0 +1,8 @@
+language: python
+dist: bionic
+
+install:
+  - pip install -r requirements.txt flake8
+
+script:
+  - flake8 .
